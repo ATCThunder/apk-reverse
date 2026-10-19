@@ -126,51 +126,93 @@ signature caught live, with the caller stack one `Log.getStackTraceString` away.
 counterpart hooks `Intent.getData` and flags `..`, `file://`, `intent://` in the returned URI —
 traversal and scheme-abuse inputs without a full monitor.
 
-## 3. WebView and the JS bridge — audit surface, not attack surface
+## 3. WebView and the JS bridge — audit surface and probing channel
 
-For reverse engineering the interesting facts are configuration and bridge inventory, both readable
-statically (grep a jadx export) and dynamically (hook the registration):
+The bridge is not just a risk surface: it is a **probe the app ships for you**. A bridge method is
+a Java entry point callable without writing a hook, and its return values, errors, and logcat
+echoes are oracles into the app's core logic. The flow below moves from static width to active
+probing; sanctioned scope is probing the app's own bridge from a page the app loads — no renderer
+sandbox-escape work.
+
+**3.1 Config width (static).** Grep a jadx export; the defaults column decides what *absence* means.
+*(Defaults verified against frameworks/base `core/java/android/webkit/WebSettings.java` and
+`WebView.java` javadoc via the cnb.cool AOSP mirror, 2026-10-19.)*
+
+| Setting | Effect if `true` | Default |
+|---|---|---|
+| `setAllowUniversalAccessFromFileURLs` | a `file://` page can read any origin — the app's private files included | **false since API 16**; deprecated — an explicit `true` in jadx is required for the exfil chain on any modern target |
+| `setAllowFileAccessFromFileURLs` | `file://` pages can read other `file://` URLs | same: false since 16, deprecated |
+| `setAllowFileAccess` | `file://` loadable at all | **true up to targetSdk 29 (Q), false from 30 (R)** — absence is not "off" on a ≤29 app |
+| `setAllowContentAccess` | `content://` loadable | true |
+| `setJavaScriptEnabled` | the base widening — required by most bridges, rarely the finding itself | false |
+| `setDomStorageEnabled` | web-side state under `/data/data/<pkg>/app_webview/` — where tokens often live | false |
+| `setMixedContentMode(MIXED_CONTENT_ALWAYS_ALLOW)` | plain-HTTP subresources readable without any TLS fight (`references/tls-and-cert.md`) | NEVER_ALLOW on ≥21 |
+| `setWebContentsDebuggingEnabled` | **a free remote-debug entry for you** — see 3.4 | false; **auto-enabled for `android:debuggable` apps on WebView 113.0.5656.0+** (javadoc, same verification) |
+
+**3.2 Bridge inventory (hook, corrected).** Since API 17 the injected object exposes only public
+methods annotated `@JavascriptInterface` — for apps *targeting* API ≤16 **all public methods** are
+exposed (javadoc-verified, same source). So tag the inventory:
 
 ```javascript
-// unverified — absorbed from milksu.org notes, not run by this repo
+// unverified — absorbed from milksu.org notes, corrected with the annotation filter
 var WV = Java.use('android.webkit.WebView');
+var JI = Java.use('android.webkit.JavascriptInterface').class;
 WV.addJavascriptInterface.implementation = function(obj, name) {
     console.log('[WV] bridge: ' + name + ' -> ' + obj.getClass().getName());
     var ms = obj.getClass().getDeclaredMethods();
-    for (var i = 0; i < ms.length; i++) console.log('   ' + ms[i].getName());
+    for (var i = 0; i < ms.length; i++)
+        console.log('   ' + (ms[i].getAnnotation(JI) !== null ? '[exposed] ' : '[internal] ')
+                    + ms[i].getName());
     return this.addJavascriptInterface(obj, name);
 };
 ```
 
-The same one-liner shape on `WebView.loadUrl.overload('java.lang.String')` records every URL the
-WebView is asked to open — the dynamic counterpart of the `loadUrl` grep row in
-`references/recon.md` §5. When the app leaves debugging disabled, `adb logcat | grep Console`
-still carries the web side's `console.log` output (`I/chromium ... [INFO:CONSOLE(n)]`) — the
-fallback observation channel.
+On a targetSdk<17 app the unfiltered list is the truth. The same one-liner shape on
+`WebView.loadUrl.overload('java.lang.String')` records every URL opened — the dynamic counterpart
+of the `loadUrl` grep row in `references/recon.md` §5. Note which bridges never transit this hook:
+URL-scheme interception (`shouldOverrideUrlLoading` parsing a custom scheme) and the
+`WebMessageListener`/`postWebMessage` message family — grep for both in the jadx export.
 
-Settings that widen what web content can reach, in descending order of risk:
+**3.3 The probing playbook** — run from the app's own page, pasted from `chrome://inspect` or from
+a probe page the app is made to load (deep link / `am start --es url`):
 
-Once the bridge is found, the static pass over a jadx export covers four more surfaces the config
-table does not: `shouldOverrideUrlLoading` (does it hand `intent://`/`file://` straight to
-`startActivity`), `onPageFinished` (what JS gets injected into every page),
-`shouldInterceptRequest` (can a responder swap content), and the cookie/storage pair —
-`CookieManager` tokens and `localStorage` contents are the exfiltration targets the config rows
-measure.
+1. **Global diff** — `Object.getOwnPropertyNames(window)` filtered for
+   `/bridge|android|native|jsb|hybrid|weixin|alipay/i`. A non-standard global names the SDK and
+   routes to vendor identification; `typeof window[k] !== 'undefined'` is the cheapest existence
+   oracle there is.
+2. **Dictionary probe** — enumeration of the injected object usually returns `[]` on modern
+   WebView (non-enumerable methods), so make the *dictionary* primary: method names harvested from
+   the jadx bridge class (3.2), from the bundled front-end JS (`assets/www/*.js`, every
+   `window.bridge.x(` call site), and from known SDK globals. `typeof o[m]` per candidate:
+   `'function'` = exposed, `undefined` = not.
+3. **Arity/type oracle** — call with `[]`, with extra args, with non-coercible types; extra args
+   are ignored, missing args arrive as null/defaults, and the error surfaces in the **console
+   channel or logcat, not necessarily as a JS exception** — so run the probe with
+   `adb logcat -s chromium Console` watching alongside. A Java-side exception stack in logcat can
+   name the handler class **without any hook**. (Console relay requires the app not to have
+   overridden `WebChromeClient` without relaying — `inferred`; if the channel is dead, that is
+   itself a finding.)
+4. **Return oracle** — `undefined` vs `void` is ambiguous until calibrated: call a bridge method
+   the jadx export shows returning `void`, record what JS actually receives, and unknown returns
+   become interpretable. For async message bridges, probe args named `callback`/`cb` and watch for
+   the response arriving on an injected `window.__*` object (discoverable by step 1).
+5. **Origin gate** — a bridge that silently no-ops from your page but works from the app's own
+   page is an origin check: record it, and probe from a page origin the app trusts instead.
 
-| Setting | Effect if `true` |
-|---|---|
-| `setAllowUniversalAccessFromFileURLs` | a `file://` page can read any origin — the app's private files included |
-| `setAllowFileAccessFromFileURLs` | `file://` pages can read other `file://` URLs |
-| `setAllowFileAccess` / `setAllowContentAccess` | `file://` / `content://` loadable at all |
-| `setJavaScriptEnabled` | the base widening — required by most bridges, so rarely the finding itself |
-| `setDomStorageEnabled` | web-side state under `/data/data/<pkg>/app_webview/` — where tokens often live |
-| `setMixedContentMode(MIXED_CONTENT_ALWAYS_ALLOW)` | plain-HTTP subresources readable without any TLS fight (`references/tls-and-cert.md`) |
-| `setWebContentsDebuggingEnabled` | **in production: a free remote-debug entry for you** — `adb forward tcp:9222 localabstract:webview_devtools_remote_<pid>` then `chrome://inspect`, no root needed |
+Then route to Java: method name → jadx string cross-ref (`recon.md` §6) → the
+`@JavascriptInterface` method → owning class → ordinary Java hook (`dynamic-frida.md`). The hook in
+3.2 names the class for `addJavascriptInterface` bridges; for the other two bridge shapes the
+static grep row is the entry.
 
-A `file://` deep link plus the first two settings is the classic private-data-exfiltration chain:
-drop an HTML file, get it opened, read `/data/data/<pkg>/…` from JS. When the app's logic you are
-chasing lives behind a JS bridge method (`window.android.foo()`), the hook above names the Java
-class; from there it is an ordinary Java-layer hook, not a web problem.
+**3.4 DevTools entry.** Two channels, different plumbing: `chrome://inspect` does its own adb
+discovery and needs no forward; the manual route is for direct HTTP — find the socket first
+(`adb shell cat /proc/net/unix | grep devtools`; the name `webview_devtools_remote_<pid>` carries
+the pid), then `adb forward tcp:9222 localabstract:webview_devtools_remote_<pid>` and read
+`http://localhost:9222/json`. The switch is **static and process-wide** — every WebView in the
+process, not per-instance — and auto-enabled on debuggable apps from WebView 113
+(javadoc-verified, 3.1). When it is off and no debuggable flag, `adb logcat | grep Console`
+(`I/chromium ... [INFO:CONSOLE(n)]`) is the fallback observation channel — if the app has not
+overridden the chrome client without relaying.
 
 ## 4. SELinux — when it blocks *your* tools, not the app
 

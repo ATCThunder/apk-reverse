@@ -29,6 +29,18 @@ Root:
 adb -s <serial> shell "su -c id"
 ```
 `pm grant` and `pm install` frequently require root on OEM builds; the `shell` user gets `SecurityException`.
+One platform fact to keep the claim honest: in AOSP main, `data/etc/platform.xml` assigns the shell
+uid only `INTERNET` — the non-root install path on stock devices goes through the adb/PackageInstaller
+session route, not a shell permission grant *(verified via the cnb.cool mirror, 2026-10-19)*. Where a
+build denies the shell, treat it as that build's policy and keep the `su` wrapper — do not report a
+`pm` SecurityException as a target finding before checking it as a shell-user limitation.
+
+**Wireless debugging** (Android 11+), for devices where USB is impractical or flaky: enable in
+Developer options → pair once with `adb pair <ip>:<pair-port> <code>`, then `adb connect <ip>:<port>`.
+The pairing port and connect port are different and both rotate on toggle; a stale `adb connect`
+serial after a reboot is a `disconnect` + re-`connect` fix, not a device fault. Note it is plaintext
+TCP on the LAN — fine for a bench, not for a hostile network. *(unverified — absorbed from milksu-era
+platform knowledge, 2026-10-19; not exercised by this repo)*
 
 **Always specify `-s <serial>` when more than one device is attached** — otherwise adb errors out or picks the wrong one.
 
@@ -177,9 +189,16 @@ adb -s <serial> shell "su -c 'pm uninstall <pkg>'"
 adb push out.apk /data/local/tmp/x.apk
 adb -s <serial> shell "su -c 'pm install -r -t -d /data/local/tmp/x.apk'"
 ```
-- `-r` reinstall (keep data, same signing key) · `-t` allow test-only · `-d` allow downgrade
+- `-r` reinstall (keep data, same signing key) · `-t` allow test-only · `-d` allow downgrade — **and `-d` only works on debuggable builds**: on retail user builds expect `INSTALL_FAILED_VERSION_DOWNGRADE`; that string is a build-type fact, not a patch failure
 - Different signing key than the installed app → must uninstall first (data is lost)
 - Vendor installers may reject `adb install`; pushing + `su -c pm install` usually works
+- Multi-user: install lands per-user — `pm install --user N` (or `am start --user N`), data under
+  `/data/user/<N>/<pkg>` (0 = primary, 10+ = work/guest; adjust the chown recipe's path accordingly),
+  and `pm uninstall -k --user 0` removes per-user without wiping the APK. *(unverified — platform
+  knowledge, 2026-10-19)*
+- **`run-as <pkg>`** works against any debuggable build without root — `run-as <pkg> ls files/`,
+  `run-as <pkg> sh` — the cheapest private-data inspection route on a userdebug device, and the one
+  `capabilities.py`'s root-hint should name alongside Magisk. *(unverified — same date)*
 
 **After reinstalling:** if you restored a data directory, fix ownership, or the app crashes in a DB-init path:
 ```bash

@@ -199,9 +199,16 @@ Java.perform(() => {
 - **Need a `Context` and have none?** This repository's own scripts already carry the idiom:
   `Java.use('android.app.ActivityThread').currentApplication()` — see `scripts/rpc_template.js` and
   `scripts/sig_probe.py`, both with a null-application retry the naive version lacks. Note the
-  boundary: on Android 9+ reflection into hidden/greylist APIs is restricted, which is why a
-  reflective route into `ServiceManager` or hidden AIDL sometimes fails where the bridge's own
-  handles still work. *(inferred — platform restriction, absorbed from milksu.org notes, 2026-10-19)*
+  hidden-API boundary, stated precisely *(verified against `art/runtime/hidden_api.cc` via the
+  cnb.cool AOSP mirror, 2026-10-19)*: enforcement gates apps by **targetSdk ≥ 28 (P)**; the
+  **greylist is warn-only** (a logcat `Accessing hidden method …` line, not a failure) — what
+  denies is the **blocklist**, and a greylist-max-X entry denies only when targetSdk > X. The
+  check derives the caller domain from the *calling frame's dex* (boot classpath ⇒ trusted), so
+  an app's reflective `Class.forName(...).getMethod(...)` hits the gate while Frida's bridge —
+  JNI called from an injected native thread with no app Java frame — resolves as trusted and
+  sails through. That asymmetry is why `Java.use` reaches what app reflection cannot. Cheapest
+  neutralization when you control the build: a **debuggable app disables the policy entirely**
+  (and on userdebug/eng, `settings put global hidden_api_policy`).
 - **Dynamic proxy as a hook alternative.** When the target exposes an interface with many or
   obfuscated implementations, `java.lang.Proxy.newProxyInstance` with an `InvocationHandler`
   registers one interceptor for all of them — the Java-native counterpart of wrapping every

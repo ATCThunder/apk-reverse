@@ -277,6 +277,16 @@ an extraction shell it can only ever produce the **skeleton**, because the missi
 bodies exist nowhere in memory until invoked. No amount of re-dumping fixes that;
 only the invocation loop recovers them.
 
+When the tool itself is refused, the walk it automates is short enough to hand-roll
+— field names verified against current main (`libcore/dalvik/src/main/java/dalvik/system/DexPathList.java`,
+cnb.cool mirror, 2026-10-19): every `BaseDexClassLoader` carries a `pathList`
+(`DexPathList`) whose `dexElements` array holds one `Element` per source, each with
+its `dexFile` (and the dex's `mCookie` the runtime actually maps). Enumerate
+`Java.enumerateClassLoaders`, read `pathList.dexElements[i].dexFile` per loader, and
+you have the loader-aware inventory `frida-dexdump` would have produced — useful both
+as the fallback and to see *which loader* owns a suspicious dex, which the tool's
+flat output does not tell you.
+
 ## Dumping when frida is refused
 
 A hardened target can refuse instrumentation outright: the dump tool dies with

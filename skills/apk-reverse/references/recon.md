@@ -181,7 +181,8 @@ API names, `inferred`; their hit-rate as triage shortcuts is not measured here.)
 | `Runtime.exec` / `ProcessBuilder` | shell-out behaviour, often config flips or su probes |
 | `addJavascriptInterface` | a JS bridge — bridge method inventory next (`references/system-ipc-audit.md`) |
 | `PendingIntent.get` without `FLAG_IMMUTABLE` nearby | a mutable capability token (Android 12+ forces a flag) |
-| `loadUrl` / `setAllowFileAccess` / `setAllowUniversalAccess` | WebView width — how far web content can reach (`references/system-ipc-audit.md`) |
+| `loadUrl` / `setAllowFileAccess` / `setAllowUniversalAccess` | WebView width — how far web content can reach; **absence is not "off"** (e.g. `setAllowFileAccess` defaults true up to targetSdk 29) — see the defaults table (`references/system-ipc-audit.md`) |
+| `addWebMessageListener` / `postWebMessage` / `createWebMessageChannel` | a message-style bridge — never transits the `addJavascriptInterface` hook (`references/system-ipc-audit.md`) |
 | `DexClassLoader` / `InMemoryDexClassLoader` / `PathClassLoader` on a download path | dynamic dex loading — plugin/hot-update surface (`references/packers.md`, `references/updates-and-forced-upgrade.md`) |
 | `getParcelableExtra` on an exported component, result passed to `startActivity`/`sendBroadcast` | intent redirection (`references/system-ipc-audit.md`) |
 | `MODE_WORLD_READABLE` / `MODE_WORLD_WRITABLE` | world-open file storage — legacy API, still tripped by old code |
