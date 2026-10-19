@@ -107,6 +107,7 @@ _54 row(s) below the header._
 | `references/account-gates.md` | Task mentions "no login required", "don't force sign-in", "skip phone binding", "guest mode"; or a screen/feature is unreachable signed-out. Also load before promising that an account-scoped screen will show anything |
 | `references/membership-and-limits.md` | Task involves VIP, subscription, paid content, unlock, "fully cracked" |
 | `references/server-api.md` | The behavior is decided by a response, or you need to know if a patch can even matter |
+| `references/system-ipc-audit.md` | The question is what the app **asks the system to do**: Binder traffic to a system service, `service call` transaction codes, Intent/deep-link/JS-bridge inputs, an `avc: denied` blocking your tools, or a Keystore attestation check that survives client patching |
 | `references/dex-patching.md` | Any actual editing of dex/smali, choosing a patch layer, choosing a tool |
 | `references/patch-audit.md` | Proving a patch **landed**, or that it is **legal**: length-vs-bytes comparison, the equal-length blind spot, verifier-level legality (`move-result*` adjacency), text-matching patch traps, and how to report a missing patch |
 | `references/repack-and-sign.md` | Rebuilding, signing, installing, or a repacked app misbehaves |
