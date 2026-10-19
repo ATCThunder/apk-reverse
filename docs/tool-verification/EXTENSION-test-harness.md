@@ -128,7 +128,8 @@ and every command it runs was executed by hand on this machine:
 
 ```
 $ python check_refs.py          exit 0                             observed
-$ python check_budget.py        exit 0  ("0 failure(s), 0 warning(s), 3 note(s)")   observed
+$ python check_budget.py
+    exit 0  ("0 failure(s), 0 warning(s), 3 note(s)")   observed
 $ python check_repo.py          exit 0  (with PYTHONUTF8=1; see §5.1)               observed
 $ python -m pytest -q           exit 0  ("596 passed, 153 skipped, 26 xfailed")     observed
 ```

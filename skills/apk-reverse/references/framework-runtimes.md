@@ -21,6 +21,10 @@ Signals in the APK:
 A `classes.dex` that is small relative to the total payload is another strong hint that the real code
 lives elsewhere.
 
+When the runtime runs **JavaScript** and the JS you find is one entry call fed a huge hex/base64
+opcode literal, that is not a runtime-identification question at all — it is a JS virtual machine
+(jsvmp). Load `references/jsvmp-recovery.md` for that shape; the table above only names the engine.
+
 ## The layer trap
 
 The expensive mistake: seeing a UI element (dialog, paywall, gate) and assuming it is a native control,

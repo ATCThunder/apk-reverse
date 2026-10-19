@@ -831,6 +831,22 @@
         "docs/tool-verification/EXTENSION-absorption-kx.md (repository root, not shipped)"
       ],
       "limits": "The procedure (VM-existence signals, CFF-vs-VM dispatcher separation, relocation-recovered tables, register anchoring with triple verification, nested segment stacks, STORE-backward operand slicing with byte provenance, clean-re-VM validation) is absorbed from two public write-ups; every step is inferred here. The shipped slicer's nested-loop diagnostic is host-tested on a synthetic nested fixture. The xvmp family now has a working, verified runtime on the workbench branches, making a synthetic fixture route available end to end."
+    },
+    {
+      "capability": "jsvmp-recovery",
+      "group": "unpacking",
+      "status": "partial",
+      "route_measured": false,
+      "strength": "inferred",
+      "benchmark_rows": [],
+      "evidence": [
+        "references/jsvmp-recovery.md",
+        "scripts/jsvmp_loader_decode.py"
+      ],
+      "evidence_not_shipped": [
+        "three public write-ups of one reverse-engineering series, 2024-03..2024-09 (titles and authors anonymized; the absorbed record is the reference file itself)"
+      ],
+      "limits": "The recovery procedures (recognition signals, the call-it-first route, stack- and register-machine reading, AST instruction extraction with register/immediate typing, the four JS-language evaluation traps, constant folding and control-flow recovery) are absorbed from three public write-ups and never executed by this repository on any real target -- all inferred. The shipped loader decoder is host-measured only against its own round trip (2,016 values exact, known varint/ZigZag byte layouts pinned, truncation raises) and decodes the write-up's own sample literal end to end; that is corroboration of the chain's shape, not a measurement on an independent target. Engine-specific delivery (WebView, QuickJS/JSC behind JNI, mini-program containers) was never exercised."
     }
   ]
 }

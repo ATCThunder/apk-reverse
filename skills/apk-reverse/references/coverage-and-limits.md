@@ -138,6 +138,13 @@ its own strength note at the top.
   anchoring with triple verification, nested segment stacks, STORE-backward slicing, clean-re-VM
   validation) absorbed from two public write-ups; every step `inferred`, none run here
   (`native-vm-recovery.md`).
+- **JS VMP (jsvmp) recovery** — reading logic protected as a private JS opcode stream: recognition
+  signals, the call-it-first route (AST restore + environment fill), stack- and register-machine
+  reading procedures, AST instruction extraction with register/immediate typing, the four
+  JS-language traps, and constant-folding/control-flow recovery. Absorbed from three public
+  write-ups; every procedure `inferred`, none run on a real target. The one shipped piece is the
+  loader decoder (base64 → varint → ZigZag), host-measured against its own round trip plus the
+  write-up's sample literal (`jsvmp-recovery.md`, `scripts/jsvmp_loader_decode.py`).
 - **Kernel-side event injection** — invisible watchpoints and register rewrites from a driver, as
   generated templates with their gates; nothing kernel-side was ever compiled or loaded here
   (`kernel-event-injection.md`, `scripts/kernel_instrument_scaffold.py`).
@@ -162,7 +169,10 @@ its own strength note at the top.
   There is no verified recipe here for locating a method inside `libil2cpp.so` plus
   `global-metadata.dat`.
 - **React Native / Hermes bytecode** and Cordova/hybrid internals, beyond runtime identification and
-  the generic "find the string, then find what references it" approach.
+  the generic "find the string, then find what references it" approach. One carve-out: if the JS
+  layer's problem is **VMP-protected JavaScript** (a jsvmp opcode literal plus interpreter), that is
+  a covered documented route (`jsvmp-recovery.md`) — it is orthogonal to which engine runs the JS;
+  the engines' own bytecode formats remain uncovered.
 - **iOS / `.ipa` of any kind.** Every device, signing and packaging instruction here is Android.
 - **Defeating a server-side authority.** `server-api.md` determines *who owns a gate*, not how to
   break an authorization the server performs.

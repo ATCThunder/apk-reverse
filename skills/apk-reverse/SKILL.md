@@ -239,6 +239,7 @@ unread in this repository.
 | You must edit, repack, sign or inspect the APK **from the phone itself** | `references/on-device-tooling.md`, `scripts/mt_mcp_probe.py` |
 | A captured body decodes to nothing readable, or you cannot tell whether a length-delimited field is a string, a nested message or a packed array | `protocol-reverse.md`. Protobuf on the wire (measured) — run `scripts/protobuf_decode_raw.py`; the candidate list and its `tie:` lines are the answer |
 | Method bodies are present but decode as **private opcodes**, and you need the mapping rather than an explanation of why VMP is hard | `vmp-differential-analysis.md`, then `advanced-unpacking.md` for the shape diagnosis |
+| The value you need (sign, token, risk parameter) is computed in **JavaScript** — a WebView or embedded JS engine — by an entry call fed a huge hex/base64 opcode literal: a JS virtual machine | `jsvmp-recovery.md` — de-obfuscate and **call it** first, then the stack/register-VM procedures and the four JS traps; `emulation-and-rpc.md` owns the call-don't-read route |
 | A store build arrives as `base.apk` + `split_config.*.apk`, or a rebuilt build is refused **as a set** although every file verifies on its own | `split-apk.md` — one keystore across every member for `pm install-multiple`, and check that a merge is legal before trusting a merged single APK |
 
 ## Gates — clear these before you patch, in order

@@ -1039,6 +1039,7 @@ SCRIPT_CAPABILITIES = {
     'find_refs.py': ['static_dex'],
     'apk_diff.py': ['static_dex'],
     'blob_decode.py': ['static_dex'],
+    'jsvmp_loader_decode.py': ['static_dex'],
     'elf_plt.py': ['static_native'],
     'so_constpatch.py': ['static_native'],
     'svc_scan.py': ['static_native'],
