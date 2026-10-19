@@ -108,6 +108,10 @@ Stripped and obfuscated libraries still expose structure:
   per call, so read the offset from a *known* JNI call in an unstripped library of the same
   target ABI before trusting a number. *(The shape is `inferred` from the JNIEnv table layout;
   absorbed from milksu.org notes, retrieved 2026-10-19.)*
+- The width/type map for reading those calls: `jboolean` u8, `jbyte` i8, `jchar` u16,
+  `jshort`/`jint` i32, `jlong` i64, `jfloat`/`jdouble` 32/64-bit float;
+  `jobject`/`jstring`/`j*Array` are pointers, not values. *(inferred from `jni.h`; same
+  source, same date.)*
 - When a payload was produced by a just-in-time compiler on the target, the displacement between its
   pages is often zero, which is exactly why relocation-free bootstrapping is required (above).
 

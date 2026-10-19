@@ -167,7 +167,11 @@ live extraction shell):
    ART at the interpreter's entry so that, as each method begins executing, the
    method's `code_item` — now holding the decrypted body — is written to disk,
    tagged with its `method_idx`. These per-method records are the "bin" files of a
-   FART dump.
+   FART dump. One VM-side hazard scales with exactly this loop: every reflective
+   call creates local references, and the local-reference table has a cap — an
+   invocation loop that never releases them (no `DeleteLocalRef`) dies mid-run with
+   a resource error that looks like the shell fighting back. *(inferred — absorbed
+   from milksu.org notes, retrieved 2026-10-19)*
 3. **Splice the bodies back into the skeleton.** For each record, overwrite the
    stub body in the whole-dex image at the offset the skeleton gives you, fix the
    header (`scripts/dexutil.py` `fix_dex_header` — signature first, checksum last),

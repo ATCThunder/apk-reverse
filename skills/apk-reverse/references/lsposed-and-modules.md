@@ -24,6 +24,21 @@ you enjoy more.
 | **LSPosed module** | an installable APK the user keeps | every process start, automatically, after the module is enabled and scoped | usually yes — the hook targets classes/methods, not offsets | mid: one project, no repackaging of the target |
 | **Repackaged APK** | a modified, re-signed APK | whenever the app runs | no — every update needs rework | highest: integrity, signature, packing, repack |
 
+A fourth route exists and breaks the table's implicit "module ⇒ rooted device" line: **LSPatch**
+patches the module *into the target APK*, producing a standalone build that runs the hook on an
+unrooted phone (its API line is `io.github.libxposed:api:100`, the modern libxposed surface). It
+is repack-class in delivery — the output is a modified, re-signed APK, with everything that means
+for signature checks (`references/signature-derived-keys.md`) and control builds — but module-class
+in authoring. *(unverified — absorbed from milksu.org notes, retrieved 2026-10-19; this repository
+has not built one.)*
+
+Two API-surface notes from the same source, same label: the runtime **resource hook** exists —
+`IXposedHookInitPackageResources` with `res.setReplacement(...)` / `hookLayout(...)` replaces
+strings and layouts without a repack, the runtime alternative to a resource edit; and beyond
+`findAndHookMethod` the shapes that matter are `findAndHookConstructor`,
+`XposedHelpers.get/setObjectField`, and `XposedBridge.hookMethod` over `getDeclaredMethods()` for
+hook-everything. Official API docs remain the reference; these are existence proofs, not tutorials.
+
 Reach for a module when **any** of these is true:
 
 - the target verifies its own signature or APK digest, so a repackaged build dies on arrival

@@ -309,7 +309,7 @@ deadline reported nothing about the target, only about your deadline.
 | `pyelftools` (python) | library | **section-based — unreliable on hardened targets.** Prefer hand-walking `PT_LOAD`/`PT_DYNAMIC`, as `scripts/elf_plt.py` does |
 | IDA Pro | GUI, **or headless via `idalib-mcp`** | the strongest decompiler output. Do not assume it needs a human in front of it — a headless MCP server exists (see *MCP tool servers* below). Ask for a human only when that setup is genuinely unavailable |
 | `x64dbg` | GUI, Windows | human-driven live debugging of a native Windows target |
-| `gdb` / `lldb` | CLI | live debugging where a device or emulator allows it |
+| `gdb` / `lldb` | CLI | live debugging where a device or emulator allows it. The LLDB remote form: `adb shell /data/local/tmp/lldb-server platform --listen "*:1234" --server &`, `adb forward tcp:1234 tcp:1234`, then `platform select remote-android` → `platform connect connect://localhost:1234` → `process attach --pid <pid>` *(unverified — absorbed from milksu.org notes, retrieved 2026-10-19)*. Attach itself can be the detected thing — check `references/detection-and-anti-analysis.md` Step 3 Stage 0 first |
 
 **capstone can stop silently.** Decoding a buffer that does not begin at an instruction boundary may
 return a few instructions and then nothing, with no error. A scan built on that reports "no matches"

@@ -87,7 +87,11 @@ For Java2C the analyst's instinct — dump memory and find the dex — is not me
    still shows the same `native` declarations you started with, and the natural (wrong) reading is
    "the dump failed".
 2. **List the translated functions.** With static linkage, `Java_<PKG>_<Class>_<method>__<proto>`
-   names map the `.so` back onto the dex one for one. Use the dex as the index and the `.so` as
+   names map the `.so` back onto the dex one for one. The `__<proto>` suffix is the mangled
+   descriptor — `;`→`_2`, `_`→`_1`, `[`→`_3` — so `__Landroid_os_Bundle_2` reads back as a
+   `(Landroid/os/Bundle;)…` signature, resolving overloads without the dex open.
+   *(inferred — JNI name-mangling rules, absorbed from milksu.org notes, 2026-10-19)*
+   Use the dex as the index and the `.so` as
    the library.
 3. **Rebuild the chain backwards.** A translated function calls *out* to Java constantly. The
    strings `FindClass` / `GetMethodID` / `GetStaticMethodID` / `Call*Method` / `NewObject` /

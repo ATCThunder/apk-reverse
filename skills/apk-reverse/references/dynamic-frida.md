@@ -196,6 +196,16 @@ Java.perform(() => {
   });
   ```
 - **Call stacks are the highest-value signal.** `Log.getStackTraceString(new Throwable())` or `Java.use('android.util.Log').getStackTraceString(...)` gives you the real chain from the framework down to the method — far more reliable than reading smali.
+- **Need a `Context` and have none?** This repository's own scripts already carry the idiom:
+  `Java.use('android.app.ActivityThread').currentApplication()` — see `scripts/rpc_template.js` and
+  `scripts/sig_probe.py`, both with a null-application retry the naive version lacks. Note the
+  boundary: on Android 9+ reflection into hidden/greylist APIs is restricted, which is why a
+  reflective route into `ServiceManager` or hidden AIDL sometimes fails where the bridge's own
+  handles still work. *(inferred — platform restriction, absorbed from milksu.org notes, 2026-10-19)*
+- **Dynamic proxy as a hook alternative.** When the target exposes an interface with many or
+  obfuscated implementations, `java.lang.Proxy.newProxyInstance` with an `InvocationHandler`
+  registers one interceptor for all of them — the Java-native counterpart of wrapping every
+  overload by hand. *(unverified — absorbed from milksu.org notes, retrieved 2026-10-19)*
 
 ### Native layer
 ```javascript
@@ -478,6 +488,7 @@ runtime-grade information, and they are often enough to finish the job:
 | **Static instrumentation** — load a gadget/small agent by modifying the APK (e.g. an injected `Application` wrapper, a gadget `.so` added to `lib/<abi>/` and wired from the manifest) | Hooks run from process start with no external attach, no `ptrace`, no server process on the device to be found | Must repack and re-sign; the build you observe is no longer byte-identical to the original, so **it cannot serve as the unmodified control** (`verification.md` §the control build rule) |
 | **Static read of the answer** — the check's inputs are usually visible: the field it reads, the string it compares, the response field it trusts | Often enough to plan a patch without ever observing | You do not learn the live values; combine with `runtime-data.md` for local state |
 | **Self-recorded evidence** — the app's own cached responses, logs, or on-disk state | Real runtime data with no injection at all (a HTTP cache, a pref, a JSON snapshot left behind by a normal launch) | Only what the app happened to persist; needs one clean launch and then a filesystem read |
+| **`LD_PRELOAD`** — the classic libc-interposition route | function-level interception with no on-device agent | effectively closed on Android: zygote-forked apps do not inherit your environment, restricted processes drop it, and linker namespaces limit which `.so` paths load at all; the debuggable-build `wrap.sh` escape hatch is the one place it still works. *(inferred — absorbed from milksu.org notes, retrieved 2026-10-19)* |
 
 The last one is worth remembering because it is the cheapest and it is easy to
 forget: a normally-launched app often leaves the exact runtime data you wanted —
