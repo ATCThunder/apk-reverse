@@ -115,6 +115,82 @@ Stripped and obfuscated libraries still expose structure:
 - When a payload was produced by a just-in-time compiler on the target, the displacement between its
   pages is often zero, which is exactly why relocation-free bootstrapping is required (above).
 
+## Reading AArch64 — registers, addressing, frames
+
+The layer under every recipe above: what the disassembly itself means when a Ghidra listing is
+open and the question is what a function does with its arguments. *(Unverified as workflow —
+absorbed from milksu.org ARM64 essentials 00–02, retrieved 2026-10-19; the ISA facts are
+`inferred` from the ARM ARM and AAPCS64 those notes cite.)*
+
+**Registers.**
+
+| Register | Role | Saved by |
+|---|---|---|
+| `X0`–`X7` | arguments 1–8, return value (`X0`) | caller |
+| `X8` | indirect-return address; syscall number at `svc` sites | caller |
+| `X9`–`X15` | scratch | caller |
+| `X16`–`X17` | intra-procedure scratch — PLT stubs land here | caller |
+| `X18` | platform register — on Android it points at TLS | special |
+| `X19`–`X28` | locals that survive calls | callee |
+| `X29` / `X30` | frame pointer / link register (return address) | callee |
+| `SP`, `XZR`/`WZR` | stack pointer; zero register (reads 0, writes discard) | — |
+
+`Wn` is the low-32-bit view of `Xn`, and **writing `Wn` zeroes the high half** — the usual reason
+a pointer read through a 32-bit path came back truncated.
+
+**Calls.** First eight integer arguments in `X0`–`X7`, the rest on the stack; return in `X0`
+(128-bit in `X0:X1`, large structs through an `X8`-provided buffer). Floating point travels its own
+channel (`V0`–`V7` / `D0`–`D7`), so `mix(int, double, int, double)` puts its integers in `W0`/`W1`
+and its doubles in `D0`/`D1` — argument *position* is not register *position*. JNI follows from
+this: `env` in `X0`, `thiz`/class in `X1`, user arguments from `X2` — which is why the vtable shape
+above starts by loading from `X0`, and why a Frida `onEnter(args)` reads them in exactly that
+order.
+
+**The frame pattern** every non-leaf function wears:
+
+```asm
+stp x29, x30, [sp, #-32]!   // save FP/LR, allocate 32 bytes (SP stays 16-byte aligned)
+mov x29, sp                  // new frame pointer
+stp x19, x20, [sp, #16]      // callee-saved locals
+...                          // body
+ldp x19, x20, [sp, #16]
+ldp x29, x30, [sp], #32      // restore, release
+ret                          // branch to X30
+```
+
+Leaf functions skip all of it (`add x0, x0, x1; ret`). The `X29` chain is what any backtrace —
+tombstone frames, GDB `bt`, Frida `Thread.backtrace` — is walking.
+
+**Addressing**, the shapes worth recognizing on sight:
+
+| Shape | Meaning |
+|---|---|
+| `ldr x0, [x1]` / `[x1, #8]` | struct field at offset |
+| `ldr x0, [x1, x2, lsl #3]` | `array[i]` with 8-byte elements |
+| `ldr x0, [x1, #16]!` | pre-index: bump base, then load — the stack-push shape |
+| `ldr x0, [x1], #8` | post-index: load, then walk — the array/list-loop shape |
+| `ldr x0, [x1, w2, SXTW]` | sign-extended 32-bit index; a negative `int` index must go here, `UXTW` would turn it huge |
+| `adrp x0, #page` + `add x0, x0, #…` | how PIC code references strings and GOT entries — page base plus offset. *(inferred — standard AArch64 codegen; the source notes omit this one, but it is the pattern every string xref in a `.so` actually wears)* |
+
+**Immediates and branches.** A single instruction encodes only a 16-bit immediate, so large
+constants arrive as `movz` + `movk` pairs — a 64-bit constant is several instructions long in the
+listing, which is why byte-patching "the constant" garbles it unless every piece is edited.
+`cbz`/`cbnz` (compare-with-zero branch) and `tbz`/`tbnz` (test-bit branch) are the compact
+conditionals; `blr` is the indirect call the vtable shape ends with.
+
+**Syscall sites**, for reading what `scripts/svc_scan.py` (see
+`references/detection-and-anti-analysis.md`) finds: the number is loaded into `X8` and the call
+is `svc #0` —
+
+```asm
+mov x8, #0x47        // 64-bit table: write 64, ioctl 29, exit 93, clone 220, execve 221
+svc #0
+```
+
+so a termination site reads as an immediate into `X8` followed by `svc`, with the argument
+registers holding fd/status — and a byte scan that reports an `svc` with no `X8` load nearby is
+reading data, not code.
+
 ## Cross-architecture notes
 
 Architecture is not background information here — it decides **which artifact you must edit** and
