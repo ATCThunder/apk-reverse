@@ -172,6 +172,19 @@ Search the app's **own** packages only (ignore third-party SDKs) for:
 
 Confirm by checking whether **app code** references it. If the only callers are library-internal, it is not your problem.
 
+The same grep-the-app's-own-packages pass answers behaviour questions beyond tamper checks.
+*(Unverified: absorbed from milksu.org notes, retrieved 2026-10-19 — the patterns are standard
+API names, `inferred`; their hit-rate as triage shortcuts is not measured here.)*
+
+| Grep a jadx export for | Points at |
+|---|---|
+| `Runtime.exec` / `ProcessBuilder` | shell-out behaviour, often config flips or su probes |
+| `addJavascriptInterface` | a JS bridge — bridge method inventory next (`references/system-ipc-audit.md`) |
+| `PendingIntent.get` without `FLAG_IMMUTABLE` nearby | a mutable capability token (Android 12+ forces a flag) |
+| `loadUrl` / `setAllowFileAccess` / `setAllowUniversalAccess` | WebView width — how far web content can reach (`references/system-ipc-audit.md`) |
+| `DexClassLoader` / `InMemoryDexClassLoader` / `PathClassLoader` on a download path | dynamic dex loading — plugin/hot-update surface (`references/packers.md`, `references/updates-and-forced-upgrade.md`) |
+| `getParcelableExtra` on an exported component, result passed to `startActivity`/`sendBroadcast` | intent redirection (`references/system-ipc-audit.md`) |
+
 ## 6. API surface
 
 ```bash

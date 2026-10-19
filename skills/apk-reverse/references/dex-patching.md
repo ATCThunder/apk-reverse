@@ -202,3 +202,40 @@ Search strategies that work:
 5. `dex_classdiff` every patched dex against the original → expect zero structural drift.
 6. Repack, sign, install, launch, exercise, read logcat.
 7. If anything is off, revert that dex to the original and re-verify the control build.
+
+## Reading smali — the cheat sheet
+
+The techniques above assume you can already read what you are editing. For orientation in a large
+smali tree — before any patch exists — these are the shapes that matter. *(Unverified: absorbed
+from milksu.org notes, retrieved 2026-10-19; the syntax facts are `inferred` from the dalvik
+bytecode spec, the reading shortcuts are someone else's workflow, not measured here.)*
+
+**Type descriptors:** `V` void, `Z` boolean, `B` byte, `C` char, `S` short, `I` int, `J` long,
+`F` float, `D` double; objects `Ljava/lang/String;`; arrays `[I`, `[[Ljava/lang/Object;`. Method
+descriptors read `(...)R` with no separator between parameters — `add(II)I` is `(II)I`.
+
+**Registers:** `.registers N` is the total; `p0` is `this`, `p1..` are parameters, `v0..` are
+locals. Parameter registers sit at the **top** of the range, so adding locals means renumbering
+nothing but growing `N` — while adding code that uses a register beyond `N` fails verification.
+Any edit that introduces a new local must update `.registers` in the same edit; this is the first
+thing to check when a hand-edited method fails to verify with no obvious cause.
+
+**The five instruction families that carry most control flow:**
+
+| Family | Shapes | What you read off them |
+|---|---|---|
+| invoke | `invoke-virtual/-static/-direct/-interface {regs}, Lcls;->m(Args)R` | every non-local call, with exact target |
+| result | `move-result` / `move-result-object` immediately after an `invoke` | the value a call returned (adjacency is verifier-enforced) |
+| fields | `iget/iput` instance, `sget/sput` static | field reads/writes with owner |
+| branches | `if-eqz/if-nez v0, :label`, `if-eq/ne/lt/ge`, `goto` | every decision point; a patched condition lives here |
+| constants | `const/4`, `const/16`, `const-string`, `const-wide` | the values compared against |
+
+A method's logic is usually recoverable by reading only these — ignore the register shuffling
+between them on a first pass.
+
+**Obfuscation signatures:** ProGuard renames to `La/b/c;->a(...)` — navigate by string constants
+and call targets instead of names. A wrapper like `decrypt("base64...")` feeding every string
+constant is string encryption — the decrypted values are recoverable at runtime by hooking the
+wrapper (`references/dynamic-frida.md` §Hook strategy) rather than by reversing it. An `if-nez`
+guarding a `goto` into dead code that never executes is an opaque predicate — identify the live
+branch and read only that.

@@ -100,6 +100,14 @@ Stripped and obfuscated libraries still expose structure:
   will ignore a rewrite of its own entry point, because callers never read that field — another reason
   the entry-point rewrite must be validated per call site.
 - Dump the executable range and disassemble around candidate offsets instead of trusting symbol names.
+- The JNI calls themselves have a fixed reading shape — in a stripped library this is often the
+  fastest way to find where Java objects are touched. The first argument of an exported or
+  registered JNI function is the `JNIEnv*`; every JNI call through it compiles to
+  `ldr x8, [x0]` (load the vtable) → `ldr x8, [x8, #imm]` (slot) → `blr x8` (call), with `x0`
+  holding the env and later slots taking the jobject/jstring. Offsets differ per JNI version and
+  per call, so read the offset from a *known* JNI call in an unstripped library of the same
+  target ABI before trusting a number. *(The shape is `inferred` from the JNIEnv table layout;
+  absorbed from milksu.org notes, retrieved 2026-10-19.)*
 - When a payload was produced by a just-in-time compiler on the target, the displacement between its
   pages is often zero, which is exactly why relocation-free bootstrapping is required (above).
 

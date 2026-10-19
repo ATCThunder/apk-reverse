@@ -66,6 +66,25 @@ detector you were not asked about.
 change the user asked for. That is the drift this skill treats as most expensive, in its runtime form
 (`long-task-discipline.md` §the most expensive drift).
 
+### The named Java-level root checks, and their one-line neutralizations
+
+Step 2A's "simple, localised check" has a known population. Once Stage 2 has *named* the detector,
+these are the standard neutralizations — each is one gate, in your environment, reversible.
+*(Unverified: absorbed from milksu.org notes, retrieved 2026-10-19; not one of them was run by
+this repository. They are starting points to verify against your named detector, and they only
+apply after the detector is named — never as a blind stack.)*
+
+| Named detector | Neutralization |
+|---|---|
+| a root-check library class (`RootBeer`-style, `isRooted`/`isRooted`-shaped method) | replace the method to return the negative constant |
+| `Runtime.exec("su")` / `exec("which su")` probing for binaries | throw `IOException("Command not found")` from the hook instead of running it |
+| file-existence checks on `/system/xbin/su`, `/system/bin/su`, Magisk paths | hook the file API to report absent for those paths only |
+| package checks for `com.topjohnwu.magisk`, Xposed manager packages | hook `getPackageInfo` to throw `NameNotFoundException` for those names only |
+
+Scope the neutralization to the *named* check's class and method. A blanket hook on `Runtime.exec`
+or `File.exists` fires on legitimate app behaviour too, and an observer that also intercepts is no
+longer an observer (Step 2B's rule — run the watch and the block as separate loads).
+
 ## Step 3: locating the check — the order of search
 
 Step 2 decides *whether* to fight. This step is the part the two steps around it do not provide:

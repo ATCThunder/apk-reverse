@@ -158,6 +158,18 @@ Do not: change the device clock, install your own CA into the device trust store
 
 Then the failure is about the app's own client configuration, not the platform defaults. Typical causes: a pin that no longer matches, a hostname verifier rejecting a changed host, or a custom `SSLSocketFactory` built from a bundled keystore. Locate it the same way (Step 4, item 2) and patch at the client construction site instead of applying the template above. `dynamic-frida.md` covers finding the real construction site; `dex-patching.md` covers the patch layer.
 
+The two client-side sites, for when the attribution is done. *(Unverified: absorbed from milksu.org
+notes, retrieved 2026-10-19; standard shapes, not run here — and note what each one honestly buys:*
+
+- **`okhttp3.CertificatePinner.check`** — replace the method body to return immediately. This
+  neutralizes OkHttp's own pin table only; it does not touch a verifier or factory the app
+  installed separately, which is why the Step 4 attribution runs first.
+- **`javax.net.ssl.SSLContext.init`** — hook it and swap `args[1]` for a trust-all
+  `TrustManager[]`. This covers an app-built factory on that path, and is strictly an
+  analysis-environment move: it weakens a control the app deliberately added, so it belongs in
+  your instrumentation, never in a shipped patch (the same line the system-path template draws).
+
+
 ## Method notes
 
 - **Order of investigation is the lesson.** Every piece of evidence above comes from the server, the network, or the platform before anything is attributed to your patch: full exception chain, real host, out-of-band validation, second-host comparison, control build. Only when all of them point at a client trust decision is a patch justified. `pitfalls.md` P16 is this mistake written up as a failure.
