@@ -146,7 +146,7 @@ uname -r            # on the device. The gate for most of this section is 5.10+
 | Route | What it gives you | Prereqs | Strength |
 |---|---|---|---|
 | **eBPF kprobes/uprobes** | Fire a BPF program on kernel or userspace function entry; observe syscall arguments/results system-wide, invisible to the target process | GKI 5.10+ kernel with the BTF/tracing config; root; toolchain (bpftrace or a custom loader) | `inferred` — documented upstream, not run here |
-| **seccomp-BPF filter** | Per-process syscall allow/deny — can make a syscall **fail**, and seccomp can be installed by the app on itself (no root needed for self-filtering) | Any modern kernel; but a filter you install into the target requires ptrace/zygisk injection first | `inferred`. **Key limitation**: seccomp can reject or error a syscall (SECCOMP_RET_ERRNO/TRAP); it cannot rewrite the *content* of what a successful read returns. It closes doors; it does not paint them. |
+| **seccomp-BPF filter** | Per-process syscall allow/deny — decision set ALLOW / ERRNO / TRAP / **TRACE** (hands the syscall to a tracer) / **KILL_PROCESS** (the action that impersonates a detector: app just dies) | Any modern kernel; but a filter you install into the target requires ptrace/zygisk injection first | `inferred`. **Key limitation**: seccomp can reject or error a syscall (SECCOMP_RET_ERRNO/TRAP); it cannot rewrite the *content* of what a successful read returns. It closes doors; it does not paint them. Platform timing *(unverified — network: cnb.cool mirror carries no system/seccomp or bionic repo; URLs to check when possible: `…/platform/system/seccomp/-/git/raw/main/bpf/app.cc`, `…/platform/bionic/-/git/raw/main/libc/bionic/seccomp.cpp`)*: the app-process filter is installed by bionic at libc init — *before any app code runs* — so an in-process agent always operates under it; but a filter evaluates the **installing process's own** syscalls, so the platform filter cannot deny an *external* tracer's ptrace — "they seccomp-blocked my attach" is structurally wrong; what it blocks is your in-process agent's syscalls. `Seccomp: 2` in `/proc/<pid>/status` is the normal state of every zygote-forked app; `Seccomp_filters: >1` is the signal of a *target-installed* extra filter. |
 | **Kernel module hooking** (KPM on APatch; out-of-tree LKM elsewhere) | Inline hooks and syscall-table hooks in kernel space — the layer that *can* rewrite what a `/proc` read returns | APatch (KPM) or a self-built kernel/LKM load path; kernel-dev skills | `inferred`. This is genuine kernel development — out of scope for this skill () |
 | **Zygisk injection** (not kernel, but below the target's defences) | Run code in the target's process from zygote fork, before `.init_array` of the app's own libs | Magisk/KernelSU+ZygiskNext + a Zygisk module; no ptrace involved | `measured` as a framework (LSPosed runs this way on the reference device); a purpose-built module for a given target is `inferred` here |
 
@@ -269,7 +269,12 @@ honest outcome (`observed` on that device):
 
 The generalisable rule: **enumerate the ladder for *your* device once, write the one-line
 environment facts, and stop re-deriving them mid-task.** A closed rung is a route decision, not a
-failure.
+failure. Three one-line gate reads belong in that enumeration, because they decide whether
+kernel-side observation is open before anyone plans it *(inferred — absorbed from milksu.org notes,
+retrieved 2026-10-19)*: `/proc/sys/kernel/kptr_restrict` (0 = kallsyms addresses readable),
+`/proc/sys/kernel/dmesg_restrict` (0 = dmesg readable without root), and
+`/proc/sys/kernel/perf_event_paranoid` (≤1 = userspace perf counters) — with zeroed kallsyms
+addresses as the visible symptom of the first.
 
 ## 7. When to stop escalating — the decision table
 

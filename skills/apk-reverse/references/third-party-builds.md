@@ -50,7 +50,7 @@ re-protected an already-protected app. Look for independent, coexisting families
 |---|---|
 | Commercial packer | shell `Application`/`appComponentFactory` in the manifest, a `lib*protect*.so`, encrypted assets, `assets/*.jar` with near-maximal entropy |
 | DEX-to-native (dex2c) | a "stub" `lib*.so` containing the tool's name, `EntryPoint`/`protect`-style symbols, and **business class names as strings** alongside a near-empty dex layer |
-| Anti-debugging / RASP | strings such as `TracerPid`, `ptrace`, `NoNewPrivs`, `CheckPtraceSelf`, `AntiFrida`, plus a self-protection log path |
+| Anti-debugging / RASP | strings such as `TracerPid`, `ptrace`, `NoNewPrivs`, `CheckPtraceSelf`, `AntiFrida`, plus a self-protection log path; **Snowblind-shape**: a `PR_SET_SECCOMP`/`SECCOMP_MODE_FILTER` call together with `sigaction(SIGSYS)` — a filter＋handler pair that fakes syscall results (see `detection-and-anti-analysis.md` Step 2C) |
 | Generic hardening marker files | small text files under `assets/` naming a protection vendor and a protection timestamp |
 
 The practical consequence of an anti-debugging layer is that Frida-based dynamic work will hit

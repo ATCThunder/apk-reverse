@@ -60,13 +60,28 @@ nothing at delivery time.
 **C. Accept and report.** If the detection blocks the *deliverable* rather than your analysis — for
 example, the app verifies something the user's device will not have — then the honest output is a
 statement of what is blocked, with the evidence. Do not ship a build whose only purpose is to defeat a
-detector you were not asked about.
+detector you were not asked about. One named threat pattern fits here: **Snowblind (2024)** — an added
+native library installs a seccomp filter (`SECCOMP_RET_TRAP` on `open`-family) plus a `SIGSYS`
+handler that fakes the results, so a *runtime* observation contradicts a *static* integrity check
+(recognition strings in `third-party-builds.md`'s marker table; the technique itself is not reproduced
+here).
 
 **One interactive escape hatch exists before B:** a human-driven gdbserver session (`references/toolchain.md`,
 the GDB form in the Tier-2 row) — the AI names the commands, the user runs them and pastes the output.
 It survives *frida-specific* detection (the Stage-1 measured mappings) while still dying to *tracer-generic*
 detection (`TracerPid`) — so it discriminates the two families before you decide the check is unbeatable.
 Observer-only: the session must not also modify state (Step 2B).
+
+**The seccomp discriminator** — the fourth cause the environment table does not name: *the
+process's own filter denied the syscall my agent just issued.* `Seccomp: 2` in
+`/proc/<pid>/status` is the **normal** state of every zygote-forked app — its presence is not
+hostility. The discriminator is a death whose tombstone reads `signal 31 (SIGSYS), code 1
+(SYS_SECCOMP)` **naming the syscall your instrumentation called** (or an `EPERM`/`ENOSYS` on
+exactly that syscall), vanishing in the instrumentation-free control run. `Seccomp_filters: >1`
+means a *target-installed* extra filter — see `kernel-and-environment-hardening.md` §4 for the
+mechanism and the decision set; observe denials via `dmesg` seccomp-audit lines and
+`logcat -s seccomp SIGSYS`. *(unverified — absorbed from milksu.org notes, retrieved 2026-10-19;
+the probe already captures the `Seccomp:` field, this gives it its reading)*
 
 **Signal to stop escalating:** you have spent more effort on the analysis environment than on the
 change the user asked for. That is the drift this skill treats as most expensive, in its runtime form

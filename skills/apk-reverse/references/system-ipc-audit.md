@@ -224,7 +224,18 @@ binary, or generate the exact allow rule with `adb shell dmesg | audit2allow -p 
 pulling the policy from `/sys/fs/selinux/policy`, and audit what it emits before applying it
 (`audit2allow` is deliberately over-broad). For *reading* what an app domain may do,
 `sesearch -A -s untrusted_app sepolicy.bin` answers "can this app even reach X" questions that
-save a hook that could never fire.
+save a hook that could never fire. For the measured frida-server execution denial specifically,
+the live one-line fix is `magiskpolicy --live "allow <domain> <type> file execute"` — or run the
+binary in a different domain altogether.
+
+The same policy file answers the *explain-the-target* half — why the app reaches something you
+thought was closed: query wildcard grants (`sesearch -A -s <domain> -t <type>` — an `allow … *`
+row like `system_app vendor_data_file:file *` is the one-line explanation for "why can this
+preinstalled app read vendor data"), attribute memberships (`seinfo -t <type> -x`), and missing
+`type_transition` rules. A policy read explains the behaviour without touching the running
+system — and that is the boundary: reading the target's policy to explain it is in scope;
+injecting rules or flipping enforcement to defeat it is root-framework development, not this
+skill. *(unverified — absorbed from milksu.org notes, retrieved 2026-10-19)*
 
 ## 5. Keystore attestation — the check that survives client-side patching
 

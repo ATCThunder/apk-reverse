@@ -525,8 +525,10 @@ Three rules that keep the descent honest:
   happens to be.
 
 **The kernel layer is not reachable on this device, and the gate is a kernel version.**
-eBPF tracing (`stackplz`, kprobes, `seccomp` filters pushed from userspace) requires
-kernel **5.10+**; the measured device is **4.14.186**, so that entire layer is closed
+eBPF tracing (`stackplz`, kprobes) requires
+kernel **5.10+**; the measured device is **4.14.186**, so that layer is closed (seccomp is the
+one syscall-layer mechanism *not* closed there — a filter was observed active on this very device;
+see `kernel-and-environment-hardening.md` §4)
 here regardless of tooling. `kernel-and-environment-hardening.md` maps the route and its
 version gate; do not spend a session on the layer before checking `adb shell uname -r`.
 The consequence for this file: the descent above stops at the `svc` boundary, and a check

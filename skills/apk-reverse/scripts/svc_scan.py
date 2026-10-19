@@ -68,7 +68,7 @@ ARM64_SYSCALLS = {
     173: "getppid", 174: "getuid", 175: "geteuid", 178: "gettid", 214: "brk",
     215: "munmap", 216: "mremap", 220: "clone", 221: "execve", 222: "mmap",
     226: "mprotect", 260: "wait4", 273: "set_robust_list", 276: "renameat",
-    278: "getrandom", 280: "utimensat", 291: "statx",
+    277: "seccomp", 278: "getrandom", 280: "utimensat", 291: "statx",
 }
 
 # The three groups that decide whether a userspace strategy is even applicable.
