@@ -107,7 +107,11 @@ grep -o '/[^ ]*\.so' /proc/<pid>/maps | sort -u
 
 Libraries belonging to optional SDKs are frequently lazy: they exist, they may even be unpacked to disk,
 and they are never mapped during the startup path you are trying to influence. Unpacked-but-unmapped is
-the signature of a lazy SDK, not evidence that your file was rejected.
+the signature of a lazy SDK, not evidence that your file was rejected. And with `extractNativeLibs="false"`
+(uncompressed, mmap-from-APK installs) an added library is never extracted at all, so "drop a benign ELF
+next to it and see if the shell reacts" can silently no-op — visible in the APK, never mapped.
+`scripts/so_constpatch.py` refuses to run in that configuration for the same reason; treat the flag as
+part of the boundary map before designing an add-a-file test.
 
 Pick a host that is (a) present in `maps`, (b) exports a JNI entry point the runtime must call, and
 (c) editable. A library that exports `JNI_OnLoad` and appears in `maps` is the strongest candidate,

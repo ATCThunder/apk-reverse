@@ -169,6 +169,10 @@ notes, retrieved 2026-10-19; standard shapes, not run here — and note what eac
   analysis-environment move: it weakens a control the app deliberately added, so it belongs in
   your instrumentation, never in a shipped patch (the same line the system-path template draws).
 
+Both are hook bodies, not patches — the delivery vehicles and the
+`MethodHookParam`/implementation vocabulary to write them are in `references/dynamic-frida.md`
+and `references/lsposed-and-modules.md` §Hook vocabulary.
+
 
 ## Method notes
 

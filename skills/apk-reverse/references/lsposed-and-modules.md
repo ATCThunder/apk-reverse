@@ -25,12 +25,13 @@ you enjoy more.
 | **Repackaged APK** | a modified, re-signed APK | whenever the app runs | no — every update needs rework | highest: integrity, signature, packing, repack |
 
 A fourth route exists and breaks the table's implicit "module ⇒ rooted device" line: **LSPatch**
-patches the module *into the target APK*, producing a standalone build that runs the hook on an
-unrooted phone (its API line is `io.github.libxposed:api:100`, the modern libxposed surface). It
-is repack-class in delivery — the output is a modified, re-signed APK, with everything that means
-for signature checks (`references/signature-derived-keys.md`) and control builds — but module-class
-in authoring. *(unverified — absorbed from milksu.org notes, retrieved 2026-10-19; this repository
-has not built one.)*
+patches the module *into the target APK* — by its own README, "integrating Xposed API by inserting
+dex and so into the target APK", rootless, minimum Android 9 *(network-verified against the
+upstream READMEs, 2026-10-19; this repository has still not built one)*. It is repack-class in
+delivery — the output is a modified, re-signed APK, with everything that means for signature checks
+(`references/signature-derived-keys.md`) and control builds — but module-class in authoring.
+Upstream maintenance status of both projects: LSPosed's repository was active as of 2026-10-14
+(last push, repository not archived) — re-check before betting a deliverable on either.
 
 Two API-surface notes from the same source, same label: the runtime **resource hook** exists —
 `IXposedHookInitPackageResources` with `res.setReplacement(...)` / `hookLayout(...)` replaces
@@ -95,11 +96,33 @@ Four files. Nothing else is required — no `res/`, no launcher Activity, no per
 | File | Why it is required |
 |---|---|
 | `AndroidManifest.xml` with `<meta-data android:name="xposedmodule" android:value="true"/>` | without this key the APK installs as an ordinary app and never appears in the module list |
-| same manifest: `xposeddescription`, `xposedminversion` (`82`) | shown in the manager UI; `82` is the classic XposedBridge API level and is accepted by LSPosed |
+| same manifest: `xposeddescription`, `xposedminversion` (`82`) | shown in the manager UI; `82` is the classic XposedBridge API level and is accepted by LSPosed (newer templates declare `93`; `82` is the conservative level this kit measured) |
 | `assets/xposed_init` | one line: the fully qualified entry class. A typo here produces a module that loads and silently does nothing |
 | the entry class implementing `IXposedHookLoadPackage` | the only class LSPosed instantiates for you |
 
 `scripts/lsposed_scaffold.py` writes exactly this set, plus a README containing the build chain below,
+
+## Hook vocabulary — translating an instruction into `MethodHookParam` calls
+
+The AI designs the hook and names the class/method; the user writes the body. This is the table for
+that hand-off — the scaffold demonstrates observation only, and every *modification* request maps to
+one line below. *(API surface verified against api.xposed.info javadoc, 2026-10-19; the table's
+shapes absorbed from milksu.org notes same date.)*
+
+| The instruction | What the user writes (legacy API this kit builds with) |
+|---|---|
+| "log the arguments" | in `beforeHookedMethod`: `param.args[i]`, `param.thisObject` (null for static) |
+| "change what it is called with" | assign `param.args[i] = …` in **before** — the original then runs with the new argument |
+| "make it return X" | `param.setResult(X)` in **before** skips the original entirely; in **after** it overrides whatever ran |
+| "make it fail instead" | `param.setThrowable(new IOException(…))` in before; `param.getThrowable()/hasThrowable()` in after reads what the original threw |
+| "replace it entirely" | `XC_MethodReplacement.replaceHookedMethod` returns a value and the original never runs |
+| "the class may not exist on this build" | `XposedHelpers.findClassIfExists(...)` returns null instead of throwing |
+| "hook construction / read fields / hook everything" | `findAndHookConstructor`, `get/setObjectField`, `hookMethod` over `getDeclaredMethods()` |
+
+Decision rule in one line: **`XC_MethodHook` = observe or modify around the original;
+`XC_MethodReplacement` = the original never runs.** The modern `io.github.libxposed:api:100` surface
+exists alongside the legacy `api:82` this kit builds with; whether a legacy-API module runs unchanged
+under LSPatch is unverified — record it the first time that route is used.
 so the project is reproducible without Gradle:
 
 ```sh

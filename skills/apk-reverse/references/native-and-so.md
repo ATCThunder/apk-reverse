@@ -176,20 +176,44 @@ tombstone frames, GDB `bt`, Frida `Thread.backtrace` — is walking.
 constants arrive as `movz` + `movk` pairs — a 64-bit constant is several instructions long in the
 listing, which is why byte-patching "the constant" garbles it unless every piece is edited.
 `cbz`/`cbnz` (compare-with-zero branch) and `tbz`/`tbnz` (test-bit branch) are the compact
-conditionals; `blr` is the indirect call the vtable shape ends with.
+conditionals; `blr` is the indirect call the vtable shape ends with. The other half of the branch
+population is `cmp` + a flag-tested suffix — `cmp x0, x1` is really `subs xzr, x0, x1`, and which
+suffix follows decides the comparison kind: `b.eq`/`b.ne` (equal/not), `b.gt`/`b.lt`/`b.ge`/`b.le`
+(**signed**, N/V flag logic), `b.hi`/`b.lo`/`b.hs`/`b.ls` (**unsigned**). Signed-vs-unsigned is the
+reading error that flips which side of a licence/VIP check you think you are on: a length compared
+with `b.hi` is unsigned, so the same branch with `b.gt` means the author expected negatives.
+
+**PAC/BTI**, on armv8.3+/armv9 targets: a function bracketed by `paciasp`/`autiasp` (sign/verify
+the return address in LR) or starting with a `bti` landing pad is normal modern codegen — but a
+byte patch that **drops** the `paciasp`, or a redirect that lands **past** the `bti`, dies with
+`SIGILL` when the branch arrives. Recognition only; presence is probeable from `/proc/cpuinfo`
+features. *(inferred — standard ARM semantics, absorbed from milksu.org notes 2026-10-19; see
+also `references/native-dbi-and-deobfuscation.md` on translator interactions)*
 
 **Syscall sites**, for reading what `scripts/svc_scan.py` (see
 `references/detection-and-anti-analysis.md`) finds: the number is loaded into `X8` and the call
 is `svc #0` —
 
 ```asm
-mov x8, #0x47        // 64-bit table: write 64, ioctl 29, exit 93, clone 220, execve 221
+mov x8, #0x40        // 64-bit table: write 64, ioctl 29, exit 93, clone 220, execve 221
 svc #0
+cmn x0, #0x1, lsl #12 // bionic wrapper epilogue: is x0 in [-4096, -1]?
+b.cs done             // yes → it is an errno, not a return value
 ```
 
 so a termination site reads as an immediate into `X8` followed by `svc`, with the argument
-registers holding fd/status — and a byte scan that reports an `svc` with no `X8` load nearby is
-reading data, not code.
+registers holding fd/status — and bionic's own wrappers wear that `cmn x0, #0x1, lsl #12` +
+`b.cs` epilogue (the negative-errno range check), which separates **libc's own** svc sites from a
+protector's **inline** ones in a `svc_scan` histogram. A byte scan that reports an `svc` with no
+nearby instruction setting `X8` to a resolvable immediate is most likely reading data — the
+measured false-positive case — with the exception of a runtime-computed or table-loaded number,
+which `svc_scan` reports as `nr=?`: an unreadable site, not a non-site. *(Correction note: the
+source article's "real libc fragment" labels `mov x8, #0x47` as `<write>` — 0x47 is 71, sendfile;
+the real write wrapper loads 0x40. Its own GDB trace and decimal table were right.)* And the same
+immediate-reading applies to a protector's mapping stub: `x2 = #3` is
+`PROT_READ|PROT_WRITE`, `x3 = #0x22` is `MAP_PRIVATE|MAP_ANONYMOUS` — an anonymous-private mapping
+is where runtime-materialized libraries come from, so the payload never exists in the APK file
+and only a live dump can reach it (`references/advanced-unpacking.md`).
 
 ## Cross-architecture notes
 

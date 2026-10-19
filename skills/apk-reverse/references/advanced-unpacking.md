@@ -201,6 +201,19 @@ failure surfaces later as a dex that half-parses. Walk the handler list with
 **inferred** from repair-tool post-mortems, and it is the first place to look when a
 spliced dex parses worse than the skeleton did.
 
+## What is already on disk, before you spend a process window
+
+Before any dump session, check what the installer's optimizer already left on disk — the
+artifacts differ by Android version (`oat`/`odex` alongside the dex historically, `vdex` carrying
+the dex copies on later releases, `.art` for boot images), and a `vdex` next to the installed
+package sometimes holds the app's dex in plain form, extractable with a version-matched tool and
+no live process at all. Two gates on that shortcut: `InMemoryDexClassLoader` (API 26+) loads dex
+that never existed as a file, so a shell or hot-update path leaves nothing on disk to find; and
+quickened-era artifacts carry `invoke-virtual-quick`-class opcodes, which a plain decoder reads
+as foreign instructions — decode with a tool matching that artifact generation before concluding
+anything. *(unverified — absorbed from milksu.org notes, retrieved 2026-10-19; verify the on-disk
+layout against the device in hand, it moved more than once across releases)*
+
 ## Why the classic hooks die on Android 12-16
 
 The original FART-era hooks assumed method entry flows through
@@ -535,7 +548,11 @@ five clean instructions under `dexdump`.
 So: **before any VMP verdict, decode the same file with `dexdump`,
 `baksmali`/`smali`, or `jadx`, and quote the failure count that came from *it*.** A
 rare-opcode histogram is a lead, not evidence. Never let a private table's desync
-inform a classification — "my decoder stopped" is a fact about the decoder.
+inform a classification — "my decoder stopped" is a fact about the decoder. And one
+non-VMP source of genuinely foreign opcodes is version drift, not obfuscation: a dex
+recovered from a quickened-era `odex`/`vdex` carries `invoke-virtual-quick`-class
+opcodes — decode it with a version-matched tool (see §What is already on disk) before
+reaching for the VMP verdict.
 
 ### What a static dex probe can and cannot decide
 

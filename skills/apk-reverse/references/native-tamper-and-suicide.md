@@ -60,7 +60,7 @@ Enumerate these before you patch anything. Each has a different signature and a 
 |---|---|---|---|
 | `kill(getpid(), SIGKILL)` | `Process N exited due to signal 9 (Killed)`, **no** exit code, **no** tombstone | no | patch the call site or make the `kill` stub return 0 |
 | `exit()` / `_exit()` | process ends with an exit code, no signal | no | find the caller; usually one branch of a check |
-| `abort()` | `signal 6 (SIGABRT)` + tombstone | yes | usually a genuine assertion — find what tripped it |
+| `abort()` | `signal 6 (SIGABRT)` + tombstone | yes | usually a genuine assertion — find what tripped it. **Read the abort message first**: `stack corruption detected` + a `__stack_chk_fail` frame is the canary tripping — memory corruption, and when your own hook/patch is in the process, suspect your instrumentation before the shell; `FORTIFY:` and `Scudo` prefixes are libc/allocator hardening aborts of the same family |
 | **Deliberate crash** (see §Deliberate-crash stubs) | `signal 11 (SIGSEGV)`, tiny `fault addr` such as `0x4`, `Cause: null pointer dereference` | yes | nop the faulting store |
 | `tgkill` / `raise` | same as kill/abort | varies | often not imported at all — check the import table before assuming |
 

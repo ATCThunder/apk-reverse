@@ -62,6 +62,12 @@ example, the app verifies something the user's device will not have — then the
 statement of what is blocked, with the evidence. Do not ship a build whose only purpose is to defeat a
 detector you were not asked about.
 
+**One interactive escape hatch exists before B:** a human-driven gdbserver session (`references/toolchain.md`,
+the GDB form in the Tier-2 row) — the AI names the commands, the user runs them and pastes the output.
+It survives *frida-specific* detection (the Stage-1 measured mappings) while still dying to *tracer-generic*
+detection (`TracerPid`) — so it discriminates the two families before you decide the check is unbeatable.
+Observer-only: the session must not also modify state (Step 2B).
+
 **Signal to stop escalating:** you have spent more effort on the analysis environment than on the
 change the user asked for. That is the drift this skill treats as most expensive, in its runtime form
 (`long-task-discipline.md` §the most expensive drift).
@@ -83,7 +89,10 @@ apply after the detector is named — never as a blind stack.)*
 
 Scope the neutralization to the *named* check's class and method. A blanket hook on `Runtime.exec`
 or `File.exists` fires on legitimate app behaviour too, and an observer that also intercepts is no
-longer an observer (Step 2B's rule — run the watch and the block as separate loads).
+longer an observer (Step 2B's rule — run the watch and the block as separate loads). Delivery
+vehicle for these hook bodies: a Frida script (`references/dynamic-frida.md`) or a persistent
+module (`references/lsposed-and-modules.md` §Hook vocabulary — its table translates each
+row above into `MethodHookParam` calls).
 
 ## Step 3: locating the check — the order of search
 

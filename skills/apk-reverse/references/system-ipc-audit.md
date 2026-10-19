@@ -27,14 +27,17 @@ The app's privileged actions (install, start components, clipboard, location) cr
 boundary, and the *server* side re-checks identity there: `Binder.getCallingUid()/getCallingPid()`
 is filled in by the binder driver from the calling task, **not** copied from the parcel, so it is
 not spoofable from the client side (inferred from the driver's documented behaviour). Two practical
-consequences: you cannot fake another app's UID by crafting a parcel, and when you hook a system
-service's entry the UID you see is the truth about who called.
+consequences: you cannot fake another app's UID by crafting a parcel — and read the value with the
+right semantics for *where* you hooked. In the **app's own process** `getCallingUid()` is the app's
+own uid except while serving an inbound transaction; a callback relayed by system_server after its
+own `clearCallingIdentity()` arrives as **uid 1000** — the classic "the system is calling my app!"
+misread, when it is a relayed callback carrying the server's identity.
 
 **Transaction codes.** AIDL generates `TRANSACTION_<method> = FIRST_CALL_TRANSACTION + n` with
-`FIRST_CALL_TRANSACTION = 1` and `n` the method's 0-based ordinal in the `.aidl` file (inferred
-from the codegen contract). So "the 5th method in `IFoo.aidl`" is code `5`. Version drift changes
-ordinals — recompute against the `.aidl` or the generated Stub of the Android release you are on
-before trusting a numeric code.
+`FIRST_CALL_TRANSACTION = 1` (inferred from the codegen contract) — but **read the constants, do	not count the `.aidl`**: classic codegen ordering and the on-device generated Stub are the ground
+truth, and they only coincide with the AOSP-tag `.aidl` you happen to be reading (OEMs patch
+them; stable AIDL freezes ordinals append-only, framework interfaces move every release). The
+one-line runtime read: `Java.use("<iface>$Stub").TRANSACTION_<method>.value`.
 
 **Observing outbound traffic (client side, in the target app's process):**
 
@@ -53,27 +56,46 @@ Java.perform(function() {
 "which privileged call, with which arguments" record that static analysis of the app alone cannot
 give you when the call site is behind a SDK facade. For inbound traffic (something calling *into*
 the app — an exported service, a callback interface), hook `android.os.Binder.execTransact` the
-same way. When the interface is known, hooking the **generated proxy method instead of the raw
-transact** gives you decoded Java arguments — `Java.use("android.content.pm.IPackageManager$Stub$Proxy").installPackage`
-and friends — no parcel parsing. The raw hook tells you *that* a call crossed; the proxy hook tells
-you *what it meant*.
+same way (signature `(int, long, long, int)` on O+). When the interface is known, hooking the
+**generated proxy method instead of the raw transact** gives you decoded Java arguments — a live
+example is `Java.use("android.content.pm.IPackageManager$Stub$Proxy").getPackageInfo`, already
+this skill's own hook target in `references/detection-and-anti-analysis.md`; installs transit
+`IPackageInstallerSession$Stub$Proxy.commit`. No parcel parsing. The raw hook tells you *that* a
+call crossed; the proxy hook tells you *what it meant*.
 
 *(Provenance note: the source article's version of the outbound script hooks
 `android.os.Binder.transact` and calls `getCallingUid()` inside it — server-side semantics in a
 client-side hook. The form here is corrected accordingly; only its provenance is external.)*
 
 Root-level state, for the "why does my hook never fire" question: `adb shell su -c 'cat
-/sys/kernel/debug/binder/proc/<pid>'` lists the process's binder threads, the nodes (objects it
-serves) and the refs (objects it holds) — zero nodes means the process never registered the service
-you are trying to reach, and no client-side hook will ever fire. *(unverified — absorbed from
-milksu.org notes, retrieved 2026-10-19)*
+/sys/kernel/debug/binder/proc/<pid>'` (on binderfs/GKI kernels, ~Android 12+, the same log lives
+under `/sys/kernel/debug/binderfs/binder_logs/`) lists the process's binder threads, the nodes
+(objects it serves) and the refs (objects it holds) — zero nodes means the process never
+registered the service you are trying to reach, and no client-side hook will ever fire. *(unverified
+— absorbed from milksu.org notes, retrieved 2026-10-19)*
+
+**Hook-point map** — hook the funnel, not the hop; funnel names outlive every hop rename below.
+*(unverified — absorbed from milksu.org notes, retrieved 2026-10-19)*
+
+| Reversing question | The funnel (app-side, stable) | The hop it actually transits | Verify with |
+|---|---|---|---|
+| app starts a component | `Activity#startActivity` / `ContextImpl#startService` | `IActivityManager`, then **ATMS** — `ActivityTaskManager` facade since Android 10, `IActivityTaskManager` interface since 11 | `dumpsys activity` |
+| app installs/updates itself | `PackageInstaller#Session#commit` | `IPackageInstallerSession` binder from the `createSession` **reply** — not from ServiceManager, so `service call` cannot reach it | hook-or-nothing by construction |
+| package info / signature query | `PackageManager#getPackageInfo` | `IPackageManager$Stub$Proxy#getPackageInfo` (`GET_SIGNATURES` 64 deprecated P+ → `GET_SIGNING_CERTIFICATES`) | `dumpsys package <pkg>` |
+| permission state | `ContextImpl#checkSelfPermission` | server side split into `PermissionManagerService` (11+) | `dumpsys package <pkg>` |
+| clipboard | `ClipboardManager#set/getPrimaryClip` | `IClipboard$Stub$Proxy` (`clipboard`) | descriptor |
+| unknown outbound call | `BinderProxy#transact` (script above) | — | `getInterfaceDescriptor()` |
+| inbound into the app | the app's own Stub impls / `Binder#execTransact` | — | `getCallingUid()` inside (uid-1000 trap above) |
 
 **Driving a service by hand:** `adb shell service list` enumerates services;
 `adb shell service call <service> <code> i32 ... s16 ...` invokes transaction `<code>` directly
-(`i32`/`i64`/`f`/`d`/`s16` are the argument type tags). Use it to confirm a code number against a
-known method before you build a hook on it. `adb shell dumpsys binder_calls_stats` (Android 9+)
-shows which binder calls a process actually made — a zero-friction first look before you hook
-anything.
+(argument type tags: `i32`/`i64`/`f`/`d`/`s16`, plus `null` and `fd`). The interface token is
+written for you — never prefix an `s16` descriptor yourself. And it only reaches services in the
+default binder context (`/dev/binder`): HAL interfaces live in other contexts and are not
+`service call`-able. Use it to confirm a code number against a known method before you build a
+hook on it. `adb shell dumpsys binder_calls_stats` (Android 9+; `dumpsys binder_calls_stats enable`
+first if empty) shows which binder calls a process actually made — a zero-friction first look
+before you hook anything.
 
 ## 2. Intent audit — the input channels a repack cannot remove
 
