@@ -38,7 +38,7 @@ permissions:
 jobs:
   test:
     name: python ${{ matrix.python-version }}
-    runs-on: codeberg-tiny
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -57,7 +57,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
 
