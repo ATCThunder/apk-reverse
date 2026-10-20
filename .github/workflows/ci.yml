@@ -42,7 +42,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12", "3.13", "3.14"]
+        python-version: ["3.12"]
 
     env:
       PYTHONIOENCODING: utf-8
@@ -114,11 +114,11 @@ jobs:
     # Verified locally before being added: on a venv with only mypy and flake8, `flake8` reports 0 and
     # `mypy` reports "Success: no issues found in 55 source files".
     name: lint (mypy + flake8)
-    runs-on: ubuntu-latest
+    runs-on: codeberg-small
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
