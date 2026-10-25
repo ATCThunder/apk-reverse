@@ -115,7 +115,8 @@ its own strength note at the top.
   trace-to-CFG route, and the measured boundaries in `native-dbi-and-deobfuscation.md`.
 - **Protocol reversing beyond REST** — protobuf without a schema, gRPC frame capture, the QUIC/HTTP3
   limit, native-side certificate pinning, and — for an opaque body — classifying the primitive by
-  differential probes (header length, prefix XOR, the length law) before implementing it
+  differential probes (header length, determinism, diffusion width, the length law) before implementing
+  it
   (`protocol-reverse.md`).
 - **What to do when userspace hooking provably cannot reach the check** — raw `svc` syscalls,
   `init_array`-early detection, and the kernel-route map with its version gate

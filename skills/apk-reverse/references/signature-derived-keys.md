@@ -146,12 +146,17 @@ it also fails, the problem is environmental (`references/tls-and-cert.md`,
 A different failure with the same source. A signer is reconstructed from static analysis and produces
 a signature the server refuses, while every ingredient visible in the request looks right. The formula
 turns out to be `sig = prefix + H(input || salt || key)`, and `salt` never appears in the request — it
-is generated at init from the certificate and cached in a global.
+is generated at init from the certificate and cached in a global. (The certificate origin is
+`unverified` here; it is the same mechanism as the key case above, which is documented and likewise
+unmeasured.)
 
 **Why it defeats black-box search: the search space is missing an argument.** Trying MD5/HMAC/SHA
 combinations over the visible parameters cannot find a value that is concatenated inside the digest and
 never transmitted. The symptom is *uniform* failure, not near-misses — that is the tell, and it is
-also why this is misread as "the algorithm is not fully recovered".
+also why this is misread as "the algorithm is not fully recovered". (`observed`, host, synthetic: a
+36-combination search over three algorithms and four field orders returns zero hits against a digest
+with a hidden 16-byte salt, and returns the target the moment the salt is included — see the
+EXTENSION record.)
 
 How to get it:
 
@@ -160,15 +165,13 @@ How to get it:
 - **Or hook the digest update** and dump its argument on one request; the salt is the constant run
   inside an otherwise changing buffer.
 - **Verify with three captured triples** that vary one field each. A formula that matches all three is
-  the formula; one that matches one is a coincidence.
+  the formula; one that matches one is a coincidence. (`inferred`.)
 
 Consequence for the deliverable: the salt is per build and per certificate. A local signer carries the
 captured constant plus a build fingerprint (the same discipline as an extracted VM program,
 `native-vm-recovery.md` §11), and the report says which build it came from. On update the value
 changes and the signer must be re-derived — do not present the constant as an algorithm.
-
-(`unverified`: the certificate-derived cache is `inferred` from the same mechanism as the key case
-above; nothing here was run against a target.)
+(`inferred` from the certificate binding, not measured.)
 
 
 ## Cost of getting this wrong

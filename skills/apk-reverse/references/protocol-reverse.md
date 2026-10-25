@@ -374,23 +374,36 @@ missing family first.
 **Load this when** the body is opaque: a long base64/hex field in the query, a binary request body, a
 fixed prefix on every response — and the transform lives in a native library or a helper class.
 
-Before any static work, three black-box experiments on captured pairs, each a few minutes. You need
-several requests whose plaintext you control.
+Three black-box experiments on captured pairs, before any static work. The probes themselves were
+host-checked here on AES-128 through `openssl` (commands and output in the verification record,
+`docs/tool-verification/EXTENSION-ref-absorption-2026-10b.md`, under "Verification pass"). What they prove
+about *your* target is one step further, and stays `inferred` until you vary the key and the
+request.
 
-1. **Header length.** Encrypt two different payloads under the same key and decode both. A constant
-   first N bytes ⇒ a key-derived header. A prefix that changes when the key changes ⇒ keyed, not
-   random. A prefix that changes per request ⇒ a per-message IV or counter.
-2. **Prefix XOR.** Encrypt `P` and `P || X`, then XOR the two ciphertexts. Zeros over the common
-   prefix ⇒ a stream cipher whose keystream depends on the key alone. No such relation, plus a length
-   rounded up to a block size ⇒ a block cipher. Identical 16-byte blocks recurring across messages ⇒
-   ECB, which is a finding on its own.
-3. **Length law.** `len(c) = len(p) + k` ⇒ stream/CTR. `len(c) = ceil((len(p)+1)/b) * b` ⇒ block with
-   padding. A constant relation with a compressed prefix ⇒ compress-then-encrypt, and the plaintext
-   you are looking for is the compressor's output, not the JSON.
+1. **Header length.** Encrypt two payloads under the same key and decode both. A constant first N
+   bytes ⇒ a deterministic header: fixed plaintext, or derived from the key/IV. A prefix that changes
+   when the key changes ⇒ keyed. A prefix that changes per request ⇒ a per-message nonce.
+   (`observed` on synthetic inputs.)
+2. **Determinism, then diffusion width.** Encrypt `P` and `P || X`, and XOR the ciphertexts. Zeros
+   over the common prefix ⇒ the construction is deterministic under a fixed key and IV — **and that
+   is all it proves.** Measured: CTR, CBC and ECB all give zero prefix-XOR at a fixed IV, so this
+   experiment cannot separate a stream cipher from a block mode. (An earlier draft of this file said
+   it could; one run falsified it.) Repeat with a different IV: a CTR-style mode diverges, and so does
+   any mode that carries a per-message nonce.
 
-The classification decides what you implement: a stream cipher needs its keystream and nothing else;
-a block cipher needs its mode; ECB needs no key schedule at all to explain structure. Skipping this
-step is how a standard construction gets reimplemented as something exotic.
+   The separation comes from a one-byte plaintext flip, counted over the ciphertext: **1 changed
+   byte** ⇒ a keystream independent of the plaintext (measured: CTR, 1 of 32); **every block from
+   that point on** ⇒ a chained mode (measured: CBC, 32 of 32); **exactly one block** ⇒ ECB (measured:
+   16 of 32, later blocks untouched). (`observed`, host.)
+3. **Length law.** `len(c) = len(p)` ⇒ no padding — which fits CTR and a `nopad` block mode equally,
+   so it never decides alone. `len(c) = b * ceil((len(p)+1)/b)` ⇒ a padded block mode (PKCS#7;
+   checked for b = 16, p = 0…32). A compressed prefix with a constant length relation ⇒
+   compress-then-encrypt, and the plaintext you are looking for is the compressor's output.
+   (`observed`, host.)
+
+The classification decides what you implement: a keystream cipher needs its keystream and nothing
+else; a chained mode needs the mode and the IV; ECB needs neither to explain its structure. Skipping
+this step is how a standard construction gets reimplemented as something exotic.
 
 ### A custom-looking transform may be a wrapper that cancels
 
@@ -398,10 +411,12 @@ Wrapper arithmetic is cheaper to check than to rewrite. Two shapes cover most of
 
 - **Involution applied symmetrically.** A transform with `f(f(x)) == x` that is called on the way in
   *and* on the way out contributes nothing. The common disguise is a mask pair:
-  `(x & ~m) | (~x & m)` is exactly `x ^ m` when the bits of `m` partition the word. If both encrypt
-  and decrypt call it, drop it from your model and recover the standard primitive underneath.
-- **A fixed permutation.** The same 256-byte table applied to every input with no key dependence is an
-  encoding, not encryption. Index it out and compare against known S-boxes.
+  `(x & ~m) | (~x & m)` is exactly `x ^ m`. Exhaustively checked here over all 8-bit `(x, m)` pairs
+  and 200,000 random 16-bit pairs: zero counterexamples, and the composition is an involution. If
+  both encrypt and decrypt call it, drop it and recover the standard primitive underneath.
+  (`observed`, host — the algebra; whether a target's wrapper is that shape is `inferred`.)
+- **A fixed permutation.** The same 256-byte table applied to every input with no key dependence is
+  an encoding, not encryption. Index it out and compare against known S-boxes. (`inferred`.)
 
 Test the composition before reimplementing: apply the function twice, and check whether the caller
 uses it twice. If it cancels, the algorithm is standard and the reason it looked unfamiliar is now
@@ -413,17 +428,22 @@ Two non-cryptographic differences fail signatures that are otherwise correct. Bo
 the algorithm and both are cheap to eliminate:
 
 - **The client's encoder may be Java's.** `URLEncoder` writes a space as `+`, leaves `*`, `-`, `_`,
-  `.` alone, and percent-encodes `~` as `%7E` with uppercase hex over UTF-8. Python's `quote` does the
-  opposite on `~` and uses `%20`. Reimplement what the client does and check it against one captured
-  parameter value, not against documentation.
-- **Compression bytes are implementation-defined.** Two libraries can emit different, equally valid
-  compressed output for the same input. Whether that breaks you is a property of the **server**: if it
-  decompresses and checks a CRC or the plaintext, byte equality is not required; if it compares the
-  stored blob, it is. One mutation tells you which, and the answer decides whether byte-perfect
-  reproduction is even the goal.
+  `.` alone, and percent-encodes `~` as `%7E` with uppercase hex over UTF-8. Python's does the
+  opposite on two of those: measured on this host, `quote` gives `a%20b~%2A-_.` (space `%20`, `*`
+  encoded, `~` kept) and `quote_plus` gives `a+b~%2A-_.` (space `+`, `*` still encoded). Reimplement
+  what the client does and check it against one captured parameter, not against documentation.
+  (Python side `observed`; the Java side is `unverified` here — no JDK on the analysis host — and is
+  quoted from the JDK API contract, so confirm it on one captured value.)
+- **Compressed bytes are implementation-defined.** Measured: `zlib.compress(data, 1)` and `(data, 9)`
+  produce different byte streams (49 vs 48 bytes) for the same payload, and both decompress to it.
+  Whether the difference breaks a signature is a property of the **server**: if it decompresses and
+  checks a CRC or the plaintext, byte equality is not required; if it compares the stored blob, it
+  is. One mutation tells you which. (The general claim is `observed`; the specific liblz4-vs-python-
+  lz4 divergence is `unverified` — no lz4 binding here.)
 
 **Boundary.** None of the three experiments needs the `.so`; that is the point. When the keystream is
 derived per message from a device secret, the native route comes back and §5's attribution applies.
+(`inferred`.)
 
 ## 8. Failure modes
 

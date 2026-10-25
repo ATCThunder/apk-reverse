@@ -1493,7 +1493,8 @@ the defect lives in memory, where you cannot diff it the way you diff two files.
 **Prove each stage's input is byte-identical — length, alignment, encoding — before touching the
 algorithm.** Compare stage inputs against the device, not final outputs; a stage-input diff localises
 in minutes what an output diff cannot localise at all. P42 is the decoder-desync cousin; this one is
-an extraction length.
+an extraction length. (`inferred` — a reasoning rule from how one byte propagates; no target case was
+measured for this record.)
 
 ## P50. A "custom cipher" is a wrapper that cancels
 
@@ -1517,4 +1518,6 @@ step.
 **Compose it with itself before reimplementing it** (`f(f(x)) == x`), and check whether the caller
 invokes it on both paths. If it cancels, drop it and recover the standard primitive underneath; keep
 the wrapper in the report, because it is the reason the algorithm looked unfamiliar. The method, with
-the differential probes that identify the primitive underneath, is `protocol-reverse.md` §7.
+the differential probes that identify the primitive underneath, is `protocol-reverse.md` §7; the
+mask identity itself is host-checked there (`observed`: zero counterexamples over 65,536 eight-bit
+pairs and 200,000 random 16-bit pairs).

@@ -996,7 +996,7 @@
       "evidence_not_shipped": [
         "ref/vm1.md (repository root, git-ignored, not shipped): 2026-10-25 write-up on a dual-library commercial shell"
       ],
-      "limits": "Operating rules only, absorbed 2026-10-25 and never exercised here: the dump window that closes inside JNI_OnLoad when self-decryption and watchdog startup share that function, the raw-syscall reader that stays outside a self-hooked libc, and zero-filling unreadable pages so segment offsets survive repair. The mechanisms are unverified; the ordering judgement (dump on android_dlopen_ext entry, before the protector runs) is inferred from the same source."
+      "limits": "Operating rules only, absorbed 2026-10-25 and never exercised here: the dump window that closes inside JNI_OnLoad when self-decryption and watchdog startup share that function, the raw-syscall reader that stays outside a self-hooked libc, and zero-filling unreadable pages so segment offsets survive repair. The zero-fill/offset consequence is observed on a synthetic three-page image (marker at 8199 zero-filled, 4103 skipped); the window, the reader and the target behaviour are unverified, and the placement rule is inferred from the linker arithmetic."
     },
     {
       "capability": "whitebox-crypto-devirtualization-to-program",
@@ -1019,7 +1019,7 @@
       "group": "protocol",
       "status": "partial",
       "route_measured": false,
-      "strength": "unverified",
+      "strength": "inferred",
       "benchmark_rows": [],
       "evidence": [
         "references/protocol-reverse.md",
@@ -1028,7 +1028,7 @@
       "evidence_not_shipped": [
         "ref/vm3.md (repository root, git-ignored, not shipped): 2026-10-25 write-up on a native signer and an encrypted request body"
       ],
-      "limits": "Three black-box probes (key-derived header length, prefix XOR for a keystream, the length law), the involution-wrapper algebra, and Java-versus-Python encoding plus compression drift. Absorbed from one write-up; no cipher was classified here, and no server was tested for whether it compares compressed bytes or only the decompressed payload."
+      "limits": "Three black-box probes -- header length, output determinism, and one-byte diffusion width, plus the length law -- the involution-wrapper algebra, and Java-versus-Python encoding plus compression drift. Host-checked on AES-128 through openssl and on synthetic inputs: the probes separate CTR, CBC and ECB (1 / all-following / one block changed per flipped byte), the mask identity has zero counterexamples over 65,536 eight-bit pairs and 200,000 random 16-bit pairs, the length law holds for b=16, and zlib levels 1 and 9 emit different valid streams for one payload. The probe this row originally described (prefix XOR implies a stream cipher) was falsified by that run -- CBC and ECB also show zero prefix-XOR at a fixed IV -- and the reference now carries the corrected discriminator. No target body was classified, and no server was tested for whether it compares compressed bytes or only the decompressed payload."
     },
     {
       "capability": "websocket-long-connection-analysis",

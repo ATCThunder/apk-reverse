@@ -179,6 +179,9 @@ Two conditions, both required:
   once it always returns clean. Enumerate the callers before you touch it — the xref list in the
   disassembler, or the same caller enumeration `scripts/find_refs.py` does for dex methods.
 
+(`unverified` that a given target funnels every detector through one predicate — that is the
+source's finding. The decision-versus-action rule is `inferred` from it.)
+
 ### Grade the sites by what being wrong costs
 
 | Tier | What it is | How to patch it | Why this order |
@@ -191,6 +194,10 @@ The benign value is not always 0. Read the caller's branch: a "found something" 
 non-zero, a "list of hits" scanner returns NULL, a "should continue" predicate returns 1. Returning
 0 everywhere is a guess that happens to work half the time — and the failing half reads as a broken
 patch instead of a wrong constant.
+
+(`inferred`: the order follows from observability — a death at tier 0 hides every other result —
+and the benign-value rule from the caller's branch. The tier vocabulary is the source's,
+`unverified`; no graded set was run here.)
 
 ### Count the watchdogs before declaring the set closed
 
@@ -205,11 +212,14 @@ Patch one and the app still dies, at a different delay, which reads as "the patc
 than "there were three". After the tier 0/1 set, the process must survive longer than the **longest**
 timer you have observed, not the first one.
 
+(`unverified` for the probe inventory — source-reported for one shell; `inferred` for "identify a
+thread by what it reads", which follows from the probe classes themselves.)
+
 ### One tier per run
 
 Patch tier 0, run, record; then tier 1; then tier 2 only if needed. A build with all tiers changed at once cannot
 tell you which one mattered, and the next failure is unattributable. This is the single-variable rule
-of `pitfalls.md` P21 applied to a patch set.
+of `pitfalls.md` P21 applied to a patch set. (`inferred`.)
 
 
 ## ELF hardening you will meet in these targets

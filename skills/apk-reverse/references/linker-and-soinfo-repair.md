@@ -202,8 +202,12 @@ is not relocated yet" as expected, and record the bias and relocation tables in 
 
 A dump taken *inside* `JNI_OnLoad` is the worst of both: the code is complete, so the dump looks
 right, and the watchdog is up, so the process dies during the read. **If the target dies while you
-dump and only then, this is the shape — not a broken tool.** (Both rules `unverified`: absorbed from
-one write-up, not reproduced here.)
+dump and only then, this is the shape — not a broken tool.**
+
+**Claim strength.** The window itself — SMC completing *and* watchdogs starting inside the same
+`JNI_OnLoad` — is `unverified`: one write-up reports it and this record did not reproduce it. The
+placement rule (dump in `onEnter`, keep the bias) is `inferred` from the arithmetic in §2 and §4. The
+symptom is the source's report, also `unverified`.
 
 ### 6.3 Read with syscalls, and pad the holes
 
@@ -213,15 +217,19 @@ Two properties of the reader decide whether the dump is usable.
   libc's `open`/`read`/`write` sees your dump as one more caller and can refuse or terminate. A
   raw-syscall reader (`svc #0` from a small stub, or a kernel-side reader) sits outside that
   surface. This is `advanced-unpacking.md` §"Layered descent" applied to your own tooling: the layer
-  you read from is also the layer the target can watch.
+  you read from is also the layer the target can watch. (`unverified` for the protector-hook claim;
+  the layer rule it extends is `measured` there.)
 - **An unreadable page is a hole to fill, not a range to skip.** Skipping shifts every later byte
   and produces a file that repairs into a plausible ELF with missing logic. Zero-filling preserves
   offsets and sizes, so segment placement still works; record which ranges were unreadable so the
   repair can be audited. A dump is evidence, and "these ranges were unreadable" belongs in it.
+  (`observed`, host: in a synthetic three-page image with one unreadable page, a marker meant for
+  offset 8199 lands at 8199 when the page is zero-filled and at 4103 when it is skipped — see the
+  EXTENSION record.)
 
 Then repair the image with a tool that rebuilds what the loader would have written (program headers,
 dynamic table, section headers). The repair consumes a file whose *offsets* are right; that is what
-the zero-fill protects.
+the zero-fill protects. (`inferred`: the offset/size argument above, not a repair run here.)
 
 
 ## 7. Timing: constructors and one-shot registrations

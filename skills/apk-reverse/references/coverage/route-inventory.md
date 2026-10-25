@@ -63,7 +63,7 @@ route was not measured on this repository's evidence**. Treat them as leads with
 | Publishing without publishing the target | the leak scanner, the do-not-anonymize list, and the graded precedent library — `desensitization-and-leak-scans.md`, `scripts/scan_leaks.py`, `precedents/` |
 | Native dump window and syscall reader | dump at `android_dlopen_ext` entry when self-decryption and watchdog startup share `JNI_OnLoad`; read via raw syscalls; zero-fill unreadable pages so offsets survive repair — absorbed, nothing run here — `linker-and-soinfo-repair.md` |
 | White-box crypto devirtualization | fold a deterministic VM transform into a straight-line `(op, args)` program plus constant table, output map and template, pinned to one build — absorbed, no extract produced — `native-vm-recovery.md` |
-| Cipher classification by differential probe | header length, prefix XOR and the length law separate stream from block before implementation; involution wrappers cancel; encoding/compression drift is the last mile — absorbed, never run — `protocol-reverse.md` |
+| Cipher classification by differential probe | header length, determinism, one-byte diffusion width and the length law separate CTR/CBC/ECB; involution wrappers cancel; encoding/compression drift is the last mile — probes host-checked on AES-128, no target classified — `protocol-reverse.md` |
 
 ## Dependencies this skill does not ship
 

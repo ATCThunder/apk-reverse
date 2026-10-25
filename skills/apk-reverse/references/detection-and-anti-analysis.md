@@ -262,7 +262,8 @@ about compilation, not as a hidden module.
 A process under instrumentation produces signals that are not the target's. ART takes an implicit
 `SIGSEGV` for null and bounds checks inside `boot*.oat`, `*.odex` and anonymous JIT pages, and resumes
 the thread in its own handler. A deliberate crash, a protector's kill and the runtime's own fault can
-all reach your observer looking identical: "signal 11".
+all reach your observer looking identical: "signal 11". (`unverified`: documented ART behaviour plus the
+source's observation — no trace of it was taken in this record.)
 
 The tuple that discriminates is **(signal, faulting address, faulting module)**, not the signal number.
 Count a signal only when the address resolves inside the library you are studying; log the rest and
@@ -273,9 +274,10 @@ Two consequences:
 - **Do not install a handler that swallows what the runtime expects to handle.** ART's implicit faults
   are how its null checks work; swallowing them turns a healthy process into a mysterious hang. A
   handler that intercepts signals has to forward anything whose faulting module is not the target.
+  (`inferred`.)
 - **A `boot*.oat` or `odex` frame in a crash record is the runtime's, not the shell's.** Chasing it
   produces "the VM is corrupting memory" when the truth is that the VM's own fault handling ran.
-  (`unverified` — a 2026-10 write-up on a dual-library shell; the discrimination is general.)
+  (`inferred`: a consequence of the attribution rule, not a case measured here.)
 
 
 ### Stage 6: the precise stop, and the static alternative to it
