@@ -369,7 +369,63 @@ frame's dependency set, and the envelope decodes stably across several samples. 
 is still "which state did this frame consume", no amount of body decoding helps — go capture the
 missing family first.
 
-## 7. Failure modes
+## 7. Encrypted bodies — classify the primitive before you implement it
+
+**Load this when** the body is opaque: a long base64/hex field in the query, a binary request body, a
+fixed prefix on every response — and the transform lives in a native library or a helper class.
+
+Before any static work, three black-box experiments on captured pairs, each a few minutes. You need
+several requests whose plaintext you control.
+
+1. **Header length.** Encrypt two different payloads under the same key and decode both. A constant
+   first N bytes ⇒ a key-derived header. A prefix that changes when the key changes ⇒ keyed, not
+   random. A prefix that changes per request ⇒ a per-message IV or counter.
+2. **Prefix XOR.** Encrypt `P` and `P || X`, then XOR the two ciphertexts. Zeros over the common
+   prefix ⇒ a stream cipher whose keystream depends on the key alone. No such relation, plus a length
+   rounded up to a block size ⇒ a block cipher. Identical 16-byte blocks recurring across messages ⇒
+   ECB, which is a finding on its own.
+3. **Length law.** `len(c) = len(p) + k` ⇒ stream/CTR. `len(c) = ceil((len(p)+1)/b) * b` ⇒ block with
+   padding. A constant relation with a compressed prefix ⇒ compress-then-encrypt, and the plaintext
+   you are looking for is the compressor's output, not the JSON.
+
+The classification decides what you implement: a stream cipher needs its keystream and nothing else;
+a block cipher needs its mode; ECB needs no key schedule at all to explain structure. Skipping this
+step is how a standard construction gets reimplemented as something exotic.
+
+### A custom-looking transform may be a wrapper that cancels
+
+Wrapper arithmetic is cheaper to check than to rewrite. Two shapes cover most of what looks strange:
+
+- **Involution applied symmetrically.** A transform with `f(f(x)) == x` that is called on the way in
+  *and* on the way out contributes nothing. The common disguise is a mask pair:
+  `(x & ~m) | (~x & m)` is exactly `x ^ m` when the bits of `m` partition the word. If both encrypt
+  and decrypt call it, drop it from your model and recover the standard primitive underneath.
+- **A fixed permutation.** The same 256-byte table applied to every input with no key dependence is an
+  encoding, not encryption. Index it out and compare against known S-boxes.
+
+Test the composition before reimplementing: apply the function twice, and check whether the caller
+uses it twice. If it cancels, the algorithm is standard and the reason it looked unfamiliar is now
+written down.
+
+### The last mile is encoding, not crypto
+
+Two non-cryptographic differences fail signatures that are otherwise correct. Both are invisible in
+the algorithm and both are cheap to eliminate:
+
+- **The client's encoder may be Java's.** `URLEncoder` writes a space as `+`, leaves `*`, `-`, `_`,
+  `.` alone, and percent-encodes `~` as `%7E` with uppercase hex over UTF-8. Python's `quote` does the
+  opposite on `~` and uses `%20`. Reimplement what the client does and check it against one captured
+  parameter value, not against documentation.
+- **Compression bytes are implementation-defined.** Two libraries can emit different, equally valid
+  compressed output for the same input. Whether that breaks you is a property of the **server**: if it
+  decompresses and checks a CRC or the plaintext, byte equality is not required; if it compares the
+  stored blob, it is. One mutation tells you which, and the answer decides whether byte-perfect
+  reproduction is even the goal.
+
+**Boundary.** None of the three experiments needs the `.so`; that is the point. When the keystream is
+derived per message from a device secret, the native route comes back and §5's attribution applies.
+
+## 8. Failure modes
 
 **A decode that looks valid but is not.** protobuf is self-synchronising enough that random bytes
 often decode into a plausible-looking field list. Guard against it by (a) decoding several samples of

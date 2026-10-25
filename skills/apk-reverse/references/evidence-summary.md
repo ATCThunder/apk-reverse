@@ -81,6 +81,9 @@ next** — and points at the one section that says "the full record is elsewhere
 | Attaching IDA's debug server to a `.so` | Documented route only: ABI-matched `dbgsrv`, root server, wait-for-debugger plus the JDWP handshake that releases the process, and the `extractNativeLibs="false"` failure where no breakpoint binds. Never run here; neither source targeted a hardened app | partial | unverified | `references/ida-so-debugging.md` |
 | React Native / Hermes, iOS | Outside this skill: the runtime can be identified, the logic recovery is not covered | blocked | unverified | `references/framework-runtimes.md`, `references/coverage-and-limits.md` |
 | Defeating a server-side authority | Out of scope by design; report it as a residual rather than patching harder | blocked | unverified | `references/server-api.md`, `references/handoff-boundaries.md` |
+| Native dump window and syscall reader | Absorbed operating rules: dump at `android_dlopen_ext` entry because the window closes inside `JNI_OnLoad`, a raw-syscall reader outside a self-hooked libc, and zero-filled holes so repair keeps offsets. Never exercised here | partial | unverified | `references/linker-and-soinfo-repair.md` §6.2 |
+| White-box crypto devirtualization to a program | Absorbed route: symbolic input, constant folding, a straight-line `(op, args)` program plus its constant table, output map and template; version-bound, deterministic functions only. No extract was produced here | partial | unverified | `references/native-vm-recovery.md` §11 |
+| Cipher classification by differential probe | Absorbed method: header length, prefix XOR and the length law classify a stream or block primitive before implementation; involutions cancel; Java/Python encoding and compression drift decide the last mile. Never run here | partial | unverified | `references/protocol-reverse.md` §7 |
 
 ## Where the full record lives — repository root, not shipped
 

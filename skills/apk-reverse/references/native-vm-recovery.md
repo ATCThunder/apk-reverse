@@ -171,7 +171,47 @@ pre-IP and post-IP are both recorded (`0x2 -> 0x3`), the 200k-line IR sequence *
 execution trace: +1 is fallthrough, jumps are branches, back-edges are loops — the guest CFG
 falls out. That is the end state this file walks toward: the guest program as data.
 
-## 11. Where this repository's tools plug in
+## 11. The other end state: a program you can run
+
+Sections 1–10 aim at a guest program you can **read**. When the interpreter implements one
+deterministic function — a request signer, a decoder, a checksum — the cheaper deliverable is a
+program you can **run**, and the handler semantics never need to be understood.
+
+1. **Fix the boundary.** One native entry that takes a buffer in and produces a buffer out.
+   Everything inside is the VM; everything outside is protocol.
+2. **Symbolic input, concrete everything else.** Seed the input bytes as symbols and run the VM (live,
+   or over the recorded trace). Constant-fold every node whose value does not depend on them; delete
+   loops and branches whose condition folds. What cannot fold is the part you must reproduce.
+3. **What remains is straight-line.** An SSA list of `(op, args)`, where `args` are constants or the
+   indices of earlier nodes, and `op` is the ALU subset the real semantics needed — read input byte,
+   load from the constant table, add/sub, and/or/xor, shift, truncate, sign-extend. No loop, no
+   dispatcher, no handler table.
+4. **Capture four artifacts together, from one trace.** They are only valid as a set:
+   - the program;
+   - the constant table and its base (program offsets are relative to it);
+   - the **output map** — which node byte lands at which output offset;
+   - the **output template** — the fixed characters the transform does not compute.
+
+   The map and the template are what people skip. Without them the transform is right and the string
+   is wrong, which looks like an off-by-one in the algorithm and is not.
+5. **Implement it in tens of lines.** A loop over `(op, args)` with a value array. No emulator, no JNI,
+   no device — a function you can call at unit-test speed.
+
+**Version binding.** The program is a property of one build. Store the library's fingerprint (size and
+build id) beside it and re-extract on upgrade: the tables and the map move even when the algorithm
+does not. Say which build a program came from; an extract with no fingerprint is not reproducible.
+
+**Validation is per node, not per output.** Compare node values at several checkpoints against a
+device run. A node that is right in value but wrong in width (32-bit truncation where the VM kept 64)
+passes the final comparison on some inputs and fails on others — §9's failure seen from the other
+side.
+
+**Boundary.** This route needs a deterministic, input-driven computation. If the VM folds in a device
+id, a timestamp or a nonce, those become constants from one trace, and the honest claim is
+"reproduces one device's answers", not "implements the algorithm". For a signer that is often exactly
+enough, but the report has to say which claim it is making. (`unverified` — absorbed, not run.)
+
+## 12. Where this repository's tools plug in
 
 | Step | Tool |
 |---|---|
@@ -194,3 +234,4 @@ falls out. That is the end state this file walks toward: the guest program as da
 - [ ] operand slicing seeded on all STOREs; byte provenance (not value) decides folding
 - [ ] clean re-VM runs real bytecode against trace ground truth before any IR is trusted
 - [ ] labels: write-up methods `inferred`, shipped tools `observed` (host), no VM target run here
+- [ ] if the deliverable is a callable signer/decoder: §11's four artifacts captured as a set, program pinned to a build fingerprint
